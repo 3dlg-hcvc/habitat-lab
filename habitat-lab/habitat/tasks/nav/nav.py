@@ -12,6 +12,7 @@ import attr
 import numpy as np
 import quaternion
 from gym import spaces
+import math
 
 from habitat.config.default import get_agent_config
 from habitat.core.dataset import Dataset, Episode
@@ -849,6 +850,7 @@ class TopDownMap(Measure):
     ):
         if ref_floor_height is None:
             ref_floor_height = self._sim.get_agent(0).state.position[1]
+
         return ref_floor_height <= height < ref_floor_height + ceiling_height
 
     def reset_metric(self, episode, *args: Any, **kwargs: Any):
