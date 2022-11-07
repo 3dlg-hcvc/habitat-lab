@@ -4,7 +4,9 @@ import habitat
 from data.scripts.floorplanner.utils.utils import get_topdown_map
 from habitat_sim.nav import NavMeshSettings
 
-dataset_config_path = "/nethome/mkhanna37/flash1/proj-scene-builder/data/scene_datasets/floorplanner/decomposed-scenes-with-compressed-assets/hab-fp.scene_dataset_config.json"
+dataset_config_path = (
+    "data/scene_datasets/floorplanner/v1/hab-fp.scene_dataset_config.json"
+)
 
 
 def visualize_fp_scenes(scenes):
