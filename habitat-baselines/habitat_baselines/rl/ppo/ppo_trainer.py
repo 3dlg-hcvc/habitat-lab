@@ -1166,7 +1166,9 @@ class PPOTrainer(BaseRLTrainer):
                             metrics=self._extract_scalars_from_info(infos[i]),
                             fps=self.config.habitat_baselines.video_fps,
                             tb_writer=writer,
-                            keys_to_include_in_name=self.config.habitat_baselines.eval_keys_to_include_in_name,
+                            keys_to_include_in_name=self.config.EVAL_KEYS_TO_INCLUDE_IN_NAME,
+                            episode_metadata=current_episodes[i]
+
                         )
 
                         rgb_frames[i] = []
