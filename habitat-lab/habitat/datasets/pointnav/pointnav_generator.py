@@ -73,6 +73,7 @@ def is_compatible_episode(
 def _create_episode(
     episode_id: Union[int, str],
     scene_id: str,
+    scene_dataset_config: str,
     start_position: List[float],
     start_rotation: List[float],
     target_position: List[float],
@@ -85,6 +86,7 @@ def _create_episode(
         episode_id=str(episode_id),
         goals=goals,
         scene_id=scene_id,
+        scene_dataset_config=scene_dataset_config,
         start_position=start_position,
         start_rotation=start_rotation,
         shortest_paths=shortest_paths,
@@ -177,7 +179,8 @@ def generate_pointnav_episode(
 
             episode = _create_episode(
                 episode_id=episode_count,
-                scene_id=sim.habitat_config.scene,
+                scene_id=sim.habitat_config.SCENE,
+                scene_dataset_config=sim.habitat_config.SCENE_DATASET,
                 start_position=source_position,
                 start_rotation=source_rotation,
                 target_position=target_position,
