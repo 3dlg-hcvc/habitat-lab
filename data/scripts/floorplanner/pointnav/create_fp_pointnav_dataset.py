@@ -2,14 +2,15 @@
 Script for creating a PointNav dataset for Floor-planner scenes (sourced from habitat_baselines/rl/ddppo/data_generation/create_gibson_large_dataset.py).
 """
 
+import argparse
 import gzip
 import json
 import multiprocessing
 import os
 from itertools import repeat
 
-import tqdm
 import yaml
+from tqdm import tqdm
 
 import habitat
 from habitat.datasets.pointnav.pointnav_generator import (
@@ -65,24 +66,28 @@ def _generate_fn(scene, split):
     sim.close()
 
 
-def generate_fp_pointnav_dataset():
+def generate_fp_pointnav_dataset(args):
     os.makedirs(output_dataset_path, exist_ok=True)
 
     # Load splits
     with open(splits_info_path, "r") as f:
         scene_splits = yaml.safe_load(f)
 
-    for split in scene_splits.keys():
+    if args.split == "all":
+        splits = scene_splits.keys()
+    else:
+        splits = [args.split]
+
+    for split in splits:
+        print(f"Creating {split} dataset.")
         scenes = scene_splits[split]
 
-        with multiprocessing.Pool(4) as pool, tqdm.tqdm(
-            total=len(scenes)
-        ) as pbar:
+        with multiprocessing.Pool(4) as pool, tqdm(total=len(scenes)) as pbar:
             for _ in pool.starmap(_generate_fn, zip(scenes, repeat(split))):
                 pbar.update()
 
-        # [DEBUG]
-        # for scene in scenes:
+        # [for debugging]
+        # for scene in tqdm(scenes):
         #     _generate_fn(scene, split)
 
         path = os.path.join(output_dataset_path, split, split + ".json.gz")
@@ -93,4 +98,13 @@ def generate_fp_pointnav_dataset():
 
 
 if __name__ == "__main__":
-    generate_fp_pointnav_dataset()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--split",
+        type=str,
+        choices=["train", "test", "val", "all"],
+        default="all",
+    )
+    args = parser.parse_args()
+
+    generate_fp_pointnav_dataset(args)
