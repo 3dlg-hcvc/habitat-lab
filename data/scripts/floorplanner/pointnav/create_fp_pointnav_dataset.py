@@ -9,10 +9,12 @@ import multiprocessing
 import os
 from itertools import repeat
 
+import cv2
 import yaml
 from tqdm import tqdm
 
 import habitat
+from data.scripts.floorplanner.utils.utils import get_topdown_map_with_path
 from habitat.datasets.pointnav.pointnav_generator import (
     generate_pointnav_episode,
 )
@@ -28,7 +30,7 @@ dataset_config_path = (
 output_dataset_path = "data/datasets/pointnav/floorplanner/v1"
 
 
-def _generate_fn(scene, split):
+def _generate_fn(scene, split, args):
     out_file = os.path.join(
         output_dataset_path, split, "content", f"{scene}.json.gz"
     )
@@ -57,18 +59,25 @@ def _generate_fn(scene, split):
         )
     )
 
-    for ep in dset.episodes:
-        ep.scene_id = scene
+    if args.viz:
+        ep = dset.episodes[0]
+        viz_out_file = os.path.join(
+            output_dataset_path,
+            split,
+            "viz",
+            f"topdown_scene={scene}_ep={ep.episode_id}.jpg",
+        )
+        topdown_map = get_topdown_map_with_path(
+            sim, ep.start_position, ep.start_rotation, ep.goals[0].position
+        )
+        cv2.imwrite(viz_out_file, topdown_map)
 
-    os.makedirs(os.path.dirname(out_file), exist_ok=True)
     with gzip.open(out_file, "wt") as f:
         f.write(dset.to_json())
     sim.close()
 
 
 def generate_fp_pointnav_dataset(args):
-    os.makedirs(output_dataset_path, exist_ok=True)
-
     # Load splits
     with open(splits_info_path, "r") as f:
         scene_splits = yaml.safe_load(f)
@@ -80,15 +89,27 @@ def generate_fp_pointnav_dataset(args):
 
     for split in splits:
         print(f"Creating {split} dataset.")
+
+        os.makedirs(
+            os.path.join(output_dataset_path, split, "content"), exist_ok=True
+        )
+
+        if args.viz:
+            os.makedirs(
+                os.path.join(output_dataset_path, split, "viz"), exist_ok=True
+            )
+
         scenes = scene_splits[split]
 
         with multiprocessing.Pool(4) as pool, tqdm(total=len(scenes)) as pbar:
-            for _ in pool.starmap(_generate_fn, zip(scenes, repeat(split))):
+            for _ in pool.starmap(
+                _generate_fn, zip(scenes, repeat(split), repeat(args))
+            ):
                 pbar.update()
 
         # [for debugging]
         # for scene in tqdm(scenes):
-        #     _generate_fn(scene, split)
+        #     _generate_fn(scene, split, args)
 
         path = os.path.join(output_dataset_path, split, split + ".json.gz")
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -104,6 +125,12 @@ if __name__ == "__main__":
         type=str,
         choices=["train", "test", "val", "all"],
         default="all",
+    )
+    parser.add_argument(
+        "--viz",
+        action="store_true",
+        default=False,
+        help="Visualize topdown map for first episode of each scene.",
     )
     args = parser.parse_args()
 
