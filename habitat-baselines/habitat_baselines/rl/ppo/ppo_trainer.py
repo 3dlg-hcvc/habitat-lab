@@ -1111,14 +1111,9 @@ class PPOTrainer(BaseRLTrainer):
             n_envs = self.envs.num_envs
             for i in range(n_envs):
                 if (
-                    ep_eval_count[
-                        (
-                            next_episodes_info[i].scene_id,
-                            next_episodes_info[i].episode_id,
-                        )
-                    ]
-                    == evals_per_ep
-                ):
+                    next_episodes_info[i].scene_id,
+                    next_episodes_info[i].episode_id,
+                ) in stats_episodes:
                     envs_to_pause.append(i)
 
                 if len(self.config.habitat_baselines.eval.video_option) > 0:
@@ -1145,13 +1140,13 @@ class PPOTrainer(BaseRLTrainer):
                         self._extract_scalars_from_info(infos[i])
                     )
                     current_episode_reward[i] = 0
-                    k = (
-                        current_episodes_info[i].scene_id,
-                        current_episodes_info[i].episode_id,
-                    )
-                    ep_eval_count[k] += 1
                     # use scene_id + episode_id as unique id for storing stats
-                    stats_episodes[(k, ep_eval_count[k])] = episode_stats
+                    stats_episodes[
+                        (
+                            current_episodes_info[i].scene_id,
+                            current_episodes_info[i].episode_id,
+                        )
+                    ] = episode_stats
 
                     if (
                         len(self.config.habitat_baselines.eval.video_option)
@@ -1167,7 +1162,7 @@ class PPOTrainer(BaseRLTrainer):
                             fps=self.config.habitat_baselines.video_fps,
                             tb_writer=writer,
                             keys_to_include_in_name=self.config.EVAL_KEYS_TO_INCLUDE_IN_NAME,
-                            episode_metadata=current_episodes[i]
+                            episode_metadata=current_episodes_info[i]
 
                         )
 

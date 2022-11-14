@@ -23,8 +23,8 @@ import numba
 import numpy as np
 from gym import spaces
 
-from habitat.config import read_write
-from habitat.core.dataset import BaseEpisode, Dataset, Episode, EpisodeIterator
+from habitat.config import Config
+from habitat.core.dataset import Dataset, BaseEpisode, Episode, EpisodeIterator
 from habitat.core.embodied_task import EmbodiedTask, Metrics
 from habitat.core.simulator import Observations, Simulator
 from habitat.datasets import make_dataset
@@ -404,6 +404,7 @@ class RLEnv(gym.Env):
     def episodes(self, episodes: List[Episode]) -> None:
         self._env.episodes = episodes
 
+    @property
     def current_episode(self, all_info: bool = False) -> BaseEpisode:
         """
         Returns the current episode of the environment.
@@ -419,6 +420,7 @@ class RLEnv(gym.Env):
                 episode_id=self._env.current_episode.episode_id,
                 scene_id=self._env.current_episode.scene_id,
             )
+
 
     @profiling_wrapper.RangeContext("RLEnv.reset")
     def reset(self) -> Observations:
