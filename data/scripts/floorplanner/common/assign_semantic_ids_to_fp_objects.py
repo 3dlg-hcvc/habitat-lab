@@ -4,12 +4,8 @@ import os
 from tqdm import tqdm
 
 # path containing individual .txt files containing list of object IDs for each semantic category
-semantics_path = (
-    "data/scene_datasets/floorplanner/with-objects/config/configs/semantics"
-)
-objects_path = (
-    "data/scene_datasets/floorplanner/with-objects/config/configs/objects"
-)
+semantics_path = "data/scene_datasets/floorplanner/v1/configs/semantics"
+objects_path = "data/scene_datasets/floorplanner/v1/configs/objects"
 
 semantic_categories = {
     "misc": 0,
@@ -41,9 +37,11 @@ if __name__ == "__main__":
             for id in cat_ids:
                 semantic_dict[cat].append(id.strip())
 
+    print("Number of objects in each category:")
     for key in semantic_dict.keys():
         print(key, len(semantic_dict[key]))
 
+    print("Assigning semantic IDs:")
     objects = [x for x in os.listdir(objects_path) if x.endswith(".json")]
     misc_ctr = 0
     for obj in tqdm(objects):
@@ -75,4 +73,4 @@ if __name__ == "__main__":
         with open(obj_path, "w") as f:
             json.dump(obj_json, f)
 
-    print("Number of non-miscellaneous objects", len(objects) - misc_ctr)
+    print("Number of non-miscellaneous objects:", len(objects) - misc_ctr)
