@@ -5,64 +5,32 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import trimesh
+import yaml
 from tqdm import tqdm
 
+goal_categories_file_path = (
+    "data/scene_datasets/floorplanner/v1/goal_categories.yaml"
+)
 model_stats_path = (
     "data/scene_datasets/floorplanner/v1/stats/fp_model_stats.tsv"
 )
 object_dataset_path = "/nethome/mkhanna37/flash1/proj-scene-builder/data/scene_datasets/floorplanner/with-objects/config/configs/furniture-noq"
 stats_out_path = "data/scene_datasets/floorplanner/v1/stats/"
 
-v1_categories = [
-    "chair",
-    "couch",
-    "potted_plant",
-    "bed",
-    "toilet",
-    "tv",
-    "table",
-    "cabinet",
-    "counter",
-    "table_lamp",
-    "stool",
-    "chest_of_drawers",
-    "bathtub",
-    "sink",
-    "fireplace",
-    "carpet",
-    "cushion",
-    "picture",
-    "plate",
-    "bowl",
-    "bottle",
-    "cookware",
-    "drinkware",
-    "book",
-    "vase",
-    "shoes",
-    "shelves",
-    "wardrobe",
-    "fridge",
-    "oven",
-    "washer_dryer",
-    "shower",
-    "laptop",
-    "alarm_clock",
-    "mobile_phone",
-    "toaster",
-]
-v1_categories = sorted(v1_categories)
+with open(goal_categories_file_path, "r") as f:
+    goal_categories = sorted(yaml.safe_load(f))
 
 data = pd.read_csv(model_stats_path, sep="\t")
 
 cat_size_dict = {}
 cat_size_means = {}
 
-for cat in tqdm(sorted(v1_categories)):
+for cat in tqdm(goal_categories):
     cat_size_dict[cat] = {"area": [], "volume": [], "scale": [], "count": 0}
     cat_obj_ids = data.loc[data["category"] == cat]["id"].to_list()
     if len(cat_obj_ids) == 0:
-        v1_categories.remove(cat)
+        print(f"Warning: No object IDs found for: {cat}")
+        goal_categories.remove(cat)
         continue
     for obj_id in cat_obj_ids:
         obj_mesh_path = os.path.join(object_dataset_path, obj_id + ".glb")
@@ -73,9 +41,9 @@ for cat in tqdm(sorted(v1_categories)):
     cat_size_means[cat] = np.array(cat_size_dict[cat]["scale"]).mean()
     cat_size_dict[cat]["count"] = len(cat_obj_ids)
 
-data = [cat_size_dict[x]["scale"] for x in v1_categories]
+data = [cat_size_dict[x]["scale"] for x in goal_categories]
 plt.figure(figsize=(100, 30), facecolor="w")
-labels = [x[:6] for x in v1_categories]
+labels = [x[:6] for x in goal_categories]
 boxplot = plt.boxplot(
     data,
     labels=labels,
