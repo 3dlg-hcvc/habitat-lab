@@ -1,73 +1,98 @@
 import json
 import os
 
+import yaml
 from tqdm import tqdm
 
 # path containing individual .txt files containing list of object IDs for each semantic category
 semantics_path = "data/scene_datasets/floorplanner/v1/configs/semantics"
-objects_path = "data/scene_datasets/floorplanner/v1/configs/objects"
+goal_categories_path = (
+    "data/scene_datasets/floorplanner/v1/goal_categories.yaml"
+)
+objects_path = "/nethome/mkhanna37/flash1/test/scene-builder-datasets/fphab/habitat-lab/data/scene_datasets/floorplanner/v1/configs/objects"
 
-semantic_categories = {
-    "misc": 0,
-    "bed": 1,
-    "chair": 2,
-    "potted_plant": 3,
-    "sofa": 4,
-    "toilet": 5,
-    "tv": 6,
-}
+# alarm_clock 0
+# bathtub 1
+# bed 2
+# book 3
+# bottle 4
+# bowl 5
+# cabinet 6
+# carpet 7
+# chair 8
+# chest_of_drawers 9
+# couch 10
+# cushion 11
+# drinkware 12
+# fireplace 13
+# fridge 14
+# laptop 15
+# oven 16
+# picture 17
+# plate 18
+# potted_plant 19
+# shelves 20
+# shoes 21
+# shower 22
+# sink 23
+# stool 24
+# table 25
+# table_lamp 26
+# toaster 27
+# toilet 28
+# tv 29
+# vase 30
+# wardrobe 31
+# washer_dryer 32
 
-## create semantic dict
 if __name__ == "__main__":
     semantic_dict = {}
 
-    for cat in semantic_categories.keys():
-        if cat == "misc":
-            continue
-        file_path = os.path.join(semantics_path, cat + ".txt")
+    ## create semantic dict
+    with open(goal_categories_path, "r") as f:
+        goal_categories = yaml.safe_load(f)
 
+    MISC_CATEGORY_ID = len(goal_categories)
+
+    for cat in goal_categories:
+        file_path = os.path.join(semantics_path, cat + ".yaml")
         assert os.path.exists(file_path), file_path
 
-        cat = cat.split(".")[0]
-
         with open(file_path, "r") as f:
-            cat_ids = f.readlines()[1:]
-            semantic_dict[cat] = []
-
-            for id in cat_ids:
-                semantic_dict[cat].append(id.strip())
+            cat_ids = yaml.safe_load(f)
+            semantic_dict[cat] = cat_ids
 
     print("Number of objects in each category:")
     for key in semantic_dict.keys():
         print(key, len(semantic_dict[key]))
 
+    print("-" * 40)
+
+    print("Category semantic ID mapping:")
+    for key in semantic_dict.keys():
+        print(key, goal_categories.index(key))
+
+    ## assign semantic IDs
     print("Assigning semantic IDs:")
     objects = [x for x in os.listdir(objects_path) if x.endswith(".json")]
     misc_ctr = 0
+
     for obj in tqdm(objects):
         obj_path = os.path.join(objects_path, obj)
-
         obj = obj.split(".")[0]
-
         obj_cat = None
 
         for key in semantic_dict.keys():
             if obj in semantic_dict[key]:
-                obj_cat = semantic_categories[key]
+                obj_cat = goal_categories.index(key)
                 break
 
         if obj_cat is None:
-            obj_cat = semantic_categories["misc"]
+            obj_cat = MISC_CATEGORY_ID
             misc_ctr += 1
 
         with open(obj_path, "r") as f:
-
             obj_json = json.load(f)
-            if "semantic_id" in obj_json.keys():
-                print(
-                    f"{obj_path} already has semantic ID assigned. Skipping."
-                )
-                continue
             obj_json["semantic_id"] = obj_cat
 
         with open(obj_path, "w") as f:
