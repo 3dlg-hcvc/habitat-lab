@@ -9,41 +9,8 @@ semantics_path = "data/scene_datasets/floorplanner/v1/configs/semantics"
 goal_categories_path = (
     "data/scene_datasets/floorplanner/v1/goal_categories.yaml"
 )
-objects_path = "/nethome/mkhanna37/flash1/test/scene-builder-datasets/fphab/habitat-lab/data/scene_datasets/floorplanner/v1/configs/objects"
+objects_path = "data/scene_datasets/floorplanner/v1/configs/objects"
 
-# alarm_clock 0
-# bathtub 1
-# bed 2
-# book 3
-# bottle 4
-# bowl 5
-# cabinet 6
-# carpet 7
-# chair 8
-# chest_of_drawers 9
-# couch 10
-# cushion 11
-# drinkware 12
-# fireplace 13
-# fridge 14
-# laptop 15
-# oven 16
-# picture 17
-# plate 18
-# potted_plant 19
-# shelves 20
-# shoes 21
-# shower 22
-# sink 23
-# stool 24
-# table 25
-# table_lamp 26
-# toaster 27
-# toilet 28
-# tv 29
-# vase 30
-# wardrobe 31
-# washer_dryer 32
 
 if __name__ == "__main__":
     semantic_dict = {}
