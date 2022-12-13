@@ -1,0 +1,25 @@
+SIMULATOR:
+  TURN_ANGLE: 30  # Configurable on the robot => we can replicate whatever was used for training
+  TILT_ANGLE: 30  # Configurable on the robot => we can replicate whatever was used for training
+  AGENT_0:
+    SENSORS: ['RGB_SENSOR', 'DEPTH_SENSOR']
+    HEIGHT: 1.41  # From https://hello-robot.com/product
+    RADIUS: 0.34  # From https://hello-robot.com/product
+  HABITAT_SIM_V0:
+    ALLOW_SLIDING: False  # This is really important
+  RGB_SENSOR:
+    WIDTH: 480              # From https://arxiv.org/pdf/2109.10892.pdf
+    HEIGHT: 640             # From https://arxiv.org/pdf/2109.10892.pdf
+    HFOV: 42                # From https://www.intelrealsense.com/depth-camera-d435
+    POSITION: [0, 1.31, 0]  # From https://arxiv.org/pdf/2109.10892.pdf
+  DEPTH_SENSOR:
+    WIDTH: 480              # From https://arxiv.org/pdf/2109.10892.pdf
+    HEIGHT: 640             # From https://arxiv.org/pdf/2109.10892.pdf
+    HFOV: 42                # From https://www.intelrealsense.com/depth-camera-d435
+    MIN_DEPTH: 0.5
+    MAX_DEPTH: 4.0
+    POSITION: [0, 1.31, 0]  # From https://arxiv.org/pdf/2109.10892.pdf
+
+TASK:
+  TYPE: ObjectNav-v1
+  POSSIBLE_ACTIONS: ["STOP", "MOVE_FORWARD", "TURN_LEFT", "TURN_RIGHT", "LOOK_UP", "LOOK_DOWN"]
