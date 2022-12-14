@@ -11,6 +11,7 @@ import pickle
 import traceback
 from collections import defaultdict
 
+import cv2
 import GPUtil
 import matplotlib
 import matplotlib.pyplot as plt
@@ -28,6 +29,10 @@ from sklearn.cluster import AgglomerativeClustering
 
 import habitat
 import habitat_sim
+from data.scripts.floorplanner.utils.utils import (
+    COLOR_PALETTE,
+    get_topdown_map,
+)
 from habitat.config.default import get_config
 from habitat.datasets.object_nav import object_nav_dataset
 from habitat.datasets.pointnav.pointnav_generator import ISLAND_RADIUS_LIMIT
@@ -41,12 +46,15 @@ os.environ["HABITAT_SIM_LOG"] = "quiet"
 os.environ["GLOG_minloglevel"] = "2"
 
 SCENES_ROOT = "data/scene_datasets/floorplanner/v1"
+GOAL_CATEGORIES_PATH = (
+    "data/scene_datasets/floorplanner/v1/goal_categories.yaml"
+)
 SCENE_SPLITS_PATH = os.path.join(SCENES_ROOT, "scene_splits.yaml")
 
 COMPRESSION = ".gz"
-VERSION_ID = "v1"
+VERSION_ID = "v0.1.1"
 OBJECT_ON_SAME_FLOOR = True  # [UPDATED]
-NUM_EPISODES = 1000
+NUM_EPISODES = 50000
 MIN_OBJECT_DISTANCE = 1.0
 MAX_OBJECT_DISTANCE = 30.0
 
@@ -54,20 +62,26 @@ with open(SCENE_SPLITS_PATH, "r") as f:
     FP_SCENE_SPLITS = yaml.safe_load(f)
 
 OUTPUT_DATASET_FOLDER = f"data/datasets/objectnav/floorplanner/{VERSION_ID}"
+EPISODES_DATASET_VIZ_FOLDER = os.path.join(
+    OUTPUT_DATASET_FOLDER, "viz", "episodes"
+)
+GOALS_DATASET_VIZ_FOLDER = os.path.join(
+    OUTPUT_DATASET_FOLDER, "viz", "goal_distances"
+)
+FAILURE_VIZ_FOLDER = os.path.join(
+    OUTPUT_DATASET_FOLDER, "viz", "failure_cases"
+)
 NUM_GPUS = len(GPUtil.getAvailable(limit=256))
-TASKS_PER_GPU = 5
+TASKS_PER_GPU = 16
 deviceIds = GPUtil.getAvailable(order="memory")
 
-# TODO: replace with a permanent/standard yaml file
-category_to_scene_annotation_category_id = {
-    "misc": 0,
-    "bed": 1,
-    "chair": 2,
-    "potted_plant": 3,
-    "sofa": 4,
-    "toilet": 5,
-    "tv": 6,
-}
+with open(GOAL_CATEGORIES_PATH, "r") as f:
+    goal_categories = yaml.safe_load(f)
+
+category_to_scene_annotation_category_id = {"misc": len(goal_categories)}
+
+for cat in goal_categories:
+    category_to_scene_annotation_category_id[cat] = goal_categories.index(cat)
 
 
 def get_objnav_config(i, scene):
@@ -100,7 +114,7 @@ def get_objnav_config(i, scene):
     else:
         deviceId = deviceIds[0]
     objnav_config.SIMULATOR.HABITAT_SIM_V0.GPU_DEVICE_ID = (
-        deviceId  # i % NUM_GPUS
+        deviceId
     )
 
     objnav_config.SIMULATOR.SCENE = scene
@@ -222,7 +236,6 @@ def generate_scene(args):
         rotation = source_obj.rotation
 
         obb = habitat_sim.geo.OBB(center, sizes, rotation)
-
         obj = {
             "center": source_obj.translation,
             "id": obj_id,
@@ -241,7 +254,9 @@ def generate_scene(args):
         objects.append(obj)
 
     print("Scene loaded.")
-    fname_obj = f"{OUTPUT_DATASET_FOLDER}/{split}/scene_goals/{scene}_objs.pkl"
+    fname_obj = (
+        f"{OUTPUT_DATASET_FOLDER}/{split}/scene_goals/{scene}_goal_objs.pkl"
+    )
     fname = (
         f"{OUTPUT_DATASET_FOLDER}/{split}/content/{scene}.json{COMPRESSION}"
     )
@@ -255,10 +270,11 @@ def generate_scene(args):
         with open(fname_obj, "rb") as f:
             goals_by_category = pickle.load(f)
         total_objects_by_cat = {
-            k: len(v) for k, v in goals_by_category.items()
+            k: len(v["goals"]) for k, v in goals_by_category.items()
         }
     else:
-        goals_by_category = defaultdict(list)
+        # goals_by_category = defaultdict(list)
+        goals_by_category = {}
         cell_size = objnav_config.SIMULATOR.AGENT_0.RADIUS / 2.0
         categories_to_counts = {}
 
@@ -271,7 +287,7 @@ def generate_scene(args):
                 obj["category_name"], obj["category_id"], obj["category_name"]
             )
 
-            goal = build_goal(
+            goal, topdown_map = build_goal(
                 sim,
                 object_id=obj["id"],
                 object_name_id=obj["object_name"],
@@ -285,11 +301,32 @@ def generate_scene(args):
             )
 
             if goal == None:
+                os.makedirs(
+                    os.path.join(FAILURE_VIZ_FOLDER, scene), exist_ok=True
+                )
+                fail_case_path = os.path.join(
+                    FAILURE_VIZ_FOLDER,
+                    scene,
+                    f'{obj["category_name"]}_{obj["object_name"]}.jpg',
+                )
+                cv2.imwrite(fail_case_path, topdown_map[:, :, ::-1])
                 continue
+
             categories_to_counts[obj["category_name"]][0] += 1
+            if (
+                osp.basename(scene) + "_" + obj["category_name"]
+                not in goals_by_category.keys()
+            ):
+                goals_by_category[
+                    osp.basename(scene) + "_" + obj["category_name"]
+                ] = {"goals": [], "topdown_maps": {}}
+
             goals_by_category[
                 osp.basename(scene) + "_" + obj["category_name"]
-            ].append(goal)
+            ]["goals"].append(goal)
+            goals_by_category[
+                osp.basename(scene) + "_" + obj["category_name"]
+            ]["topdown_maps"][obj["id"]] = topdown_map
 
         for obj_cat in sorted(list(categories_to_counts.keys())):
             nvalid, ntotal = categories_to_counts[obj_cat]
@@ -298,7 +335,7 @@ def generate_scene(args):
             )
         os.makedirs(osp.dirname(fname_obj), exist_ok=True)
         total_objects_by_cat = {
-            k: len(v) for k, v in goals_by_category.items()
+            k: len(v["goals"]) for k, v in goals_by_category.items()
         }
         with open(fname_obj, "wb") as f:
             pickle.dump(goals_by_category, f)
@@ -347,14 +384,21 @@ def generate_scene(args):
         goal_category_to_cluster_distances = {}
         for cat, data in goals_by_category.items():
             object_vps = []
-            for inst_data in data:
+            for inst_data in data["goals"]:
                 for view_point in inst_data.view_points:
                     object_vps.append(view_point.agent_state.position)
             goal_distances = []
             for i, cluster_info in enumerate(cluster_infos):
+                from data.scripts.floorplanner.utils.utils import (
+                    get_topdown_map,
+                )
+
+                if i == 0:
+                    td = get_topdown_map(sim, center, marker=None)
                 dist = sim.geodesic_distance(
                     cluster_info["center"], object_vps
                 )
+
                 goal_distances.append(dist)
             goal_category_to_cluster_distances[cat] = goal_distances
 
@@ -384,8 +428,10 @@ def generate_scene(args):
     dset.category_to_scene_annotation_category_id = (
         category_to_scene_annotation_category_id
     )
-
-    dset.goals_by_category = goals_by_category
+    dset_goals_by_category = {
+        k: {"goals": v["goals"]} for k, v in goals_by_category.items()
+    }
+    dset.goals_by_category = dset_goals_by_category
     scene_dataset_config = objnav_config.SIMULATOR.SCENE_DATASET
 
     with tqdm.tqdm(total=NUM_EPISODES, desc=scene) as pbar:
@@ -396,14 +442,14 @@ def generate_scene(args):
                 NUM_EPISODES / total_valid_cats
             )  # equal episodes for each category
             try:
-                # [DEBUG] Visualize object goal and agent init positions
-                # from data.scripts.floorplanner.utils.utils import get_topdown_map
-                # import cv2
-                # distances = []
+                from data.scripts.floorplanner.utils.utils import (
+                    get_topdown_map,
+                )
+
                 for i, ep in enumerate(
                     generate_objectnav_episode_v2(
                         sim,
-                        goals,
+                        goals["goals"],
                         cluster_infos,
                         np.array(goal_category_to_cluster_distances[goal_cat]),
                         num_episodes=eps_per_obj,
@@ -414,31 +460,69 @@ def generate_scene(args):
                         eps_generated=eps_generated,
                     )
                 ):
-                    # [DEBUG] Visualize object goal and agent init positions
-                    # if i == 0:
-                    #     goal_position = sim.pathfinder.snap_point(ep.goals[0].position)
-                    #     topdown_map = get_topdown_map(sim, start_pos=goal_position, marker='circle')
-                    #     for viewpoint in ep.goals[0].view_points:
-                    #         topdown_map = get_topdown_map(sim, start_pos=viewpoint.agent_state.position, marker='circle', color=(0,0,255), radius=2, topdown_map=topdown_map)
+                    if "distances" not in goals.keys():
+                        goals["distances"] = {}
 
-                    # topdown_map = get_topdown_map(sim, start_pos=ep.start_position, marker='circle', color=(0,255,0), radius=3, topdown_map=topdown_map)
-                    # distances.append(ep.info['geodesic_distance'])
                     dset.episodes.append(ep)
                     pbar.update()
                     eps_generated += 1
+                    goal_obj_id = ep.info["closest_goal_object_id"]
+                    
+                    # keeping track of distances from each goal object (for plotting)
+                    if goal_obj_id not in goals["distances"].keys():
+                        goals["distances"][goal_obj_id] = [
+                            ep.info["geodesic_distance"]
+                        ]
+                    else:
+                        goals["distances"][goal_obj_id].append(
+                            ep.info["geodesic_distance"]
+                        )
+
+                    # visualizing start position for each episode
+                    goals["topdown_maps"][goal_obj_id] = get_topdown_map(
+                        sim,
+                        start_pos=ep.start_position,
+                        marker="circle",
+                        color=COLOR_PALETTE["orange"],
+                        radius=3,
+                        topdown_map=goals["topdown_maps"][goal_obj_id],
+                    )
+
             except RuntimeError:
                 traceback.print_exc()
-                obj_cat = goals[0].object_name
-                print(f"Skipping category {obj_cat}")
+                obj_cat = goals["goals"][0].object_name
+                print(f"Skipping category {goal_cat}; ID: {obj_cat}")
                 pbar.update(eps_per_obj - eps_generated)
+                continue
 
-            # [DEBUG] Visualize object goal and agent init positions and distance distributions
-            # cv2.imwrite('topdown_map.png', topdown_map)
-            # plt.figure(figsize=(8, 8))
-            # sns.histplot(data=distances)
-            # plt.title(cat)
-            # plt.tight_layout()
-            # plt.savefig("foo.png")
+            for obj_id, distances in goals["distances"].items():
+                obj = [x for x in goals["goals"] if x.object_id == obj_id][0]
+                obj_name = obj.object_name
+                obj_cat = obj.object_category
+                episodes_viz_output_path = os.path.join(
+                    EPISODES_DATASET_VIZ_FOLDER, scene
+                )
+                os.makedirs(episodes_viz_output_path, exist_ok=True)
+                episode_viz_output_filename = os.path.join(
+                    episodes_viz_output_path, f"{obj_cat}_{obj_name}.jpg"
+                )
+                tdm = goals["topdown_maps"][obj_id]
+                cv2.imwrite(episode_viz_output_filename, tdm[:, :, ::-1])
+
+                goal_distances_viz_output_path = os.path.join(
+                    GOALS_DATASET_VIZ_FOLDER, scene
+                )
+                os.makedirs(goal_distances_viz_output_path, exist_ok=True)
+                goal_viz_output_filename = os.path.join(
+                    goal_distances_viz_output_path, f"{obj_cat}_{obj_name}.jpg"
+                )
+                plt.figure(figsize=(8, 8))
+
+                sns.histplot(data=distances)
+                plt.title(f"{obj_cat}_{obj_name}", fontsize=15)
+                plt.xlabel("distance to goal")
+                plt.tight_layout()
+                plt.savefig(goal_viz_output_filename)
 
     os.makedirs(osp.dirname(fname), exist_ok=True)
     save_dataset(dset, fname)
@@ -484,17 +568,19 @@ if __name__ == "__main__":
     print("GPU threads:", GPU_THREADS)
     print("*" * 50)
 
-    # [DEBUG]:
+    # # [DEBUG]:
     # total_all = 0
     # subtotals = []
     # for inp in tqdm.tqdm(inputs):
+    #     if inp[1] != '105515403_173104449':
+    #         continue
     #     scene, subtotal, subtotal_by_cat, fname = generate_scene(inp)
     #     total_all += subtotal
     #     subtotals.append(subtotal_by_cat)
 
     # Generate episodes for all scenes
     os.makedirs(OUTPUT_DATASET_FOLDER, exist_ok=True)
-    with mp_ctx.Pool(GPU_THREADS, maxtasksperchild=1) as pool, tqdm.tqdm(
+    with mp_ctx.Pool(GPU_THREADS, maxtasksperchild=2) as pool, tqdm.tqdm(
         total=len(inputs)
     ) as pbar, open(
         os.path.join(OUTPUT_DATASET_FOLDER, "train_subtotals.json"), "w"
