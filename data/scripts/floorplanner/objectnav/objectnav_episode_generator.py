@@ -5,11 +5,19 @@
 # LICENSE file in the root directory of this source tree.
 
 import itertools
+import os
 from typing import List
 
+import cv2
+import imageio
 import numpy as np
 
 import habitat_sim
+from data.scripts.floorplanner.utils.utils import (
+    COLOR_PALETTE,
+    draw_obj_bbox_on_topdown_map,
+    get_topdown_map,
+)
 from habitat.core.simulator import AgentState, ShortestPathPoint
 from habitat.datasets.pointnav.pointnav_generator import (
     ISLAND_RADIUS_LIMIT,
@@ -29,6 +37,7 @@ from habitat.utils.geometry_utils import (
     angle_between_quaternions,
     quaternion_from_two_vectors,
 )
+from habitat.utils.visualizations.utils import observations_to_image
 from habitat_sim.errors import GreedyFollowerError
 from habitat_sim.utils.common import (
     quat_from_angle_axis,
@@ -82,12 +91,11 @@ def is_compatible_episode(
         [vp.agent_state.position for vp in goal.view_points] for goal in goals
     ]
 
-    # [UPDATE]: Check if *ALL* goals are on the same floor as the agent
     if same_floor_flag:
         valid = False
         for gt in goal_targets:
             gt = np.array(gt)
-            valid = np.all(np.abs(gt[:, 1] - s[1]) < 0.5)
+            valid = np.any(np.abs(gt[:, 1] - s[1]) < 0.5)
             if valid:
                 break
         if not valid:
@@ -271,7 +279,7 @@ def build_goal(
                 pt,
                 None,
                 "too_far",
-            )  # viewpoint too far to goal object
+            )  # viewpoint too far from goal object
         if not down_is_navigable(pt):
             return (
                 -1,
@@ -287,38 +295,30 @@ def build_goal(
 
         goal_direction[1] = 0
 
-        if not np.any(np.array(goal_direction)):
-            import pdb
-
-            pdb.set_trace()
-            return -1, pt, None, "goal_direction"
-
         q = _direction_to_quaternion(goal_direction)
 
         cov = 0
         agent = sim.get_agent(0)
 
-        agent.agent_config.action_space[4] = habitat_sim.agent.ActionSpec(
-            "look_up", habitat_sim.agent.ActuationSpec(amount=30.0)
-        )
-
-        agent.agent_config.action_space[5] = habitat_sim.agent.ActionSpec(
-            "look_down", habitat_sim.agent.ActuationSpec(amount=30.0)
-        )
-
+        # UPDATE: simpler sampling of observations from look_up and look_down
+        sim.set_agent_state(pt, q)
         for act in [
             HabitatSimActions.LOOK_DOWN,
             HabitatSimActions.LOOK_UP,
             HabitatSimActions.LOOK_UP,
         ]:
             agent.act(act)
-            for v in agent._sensors.values():
-                v.set_transformation_from_spec()
-                obs = sim.get_observations_at(
-                    pt, q, keep_agent_at_new_pose=True
-                )
-            cov += compute_pixel_coverage(obs["semantic"], object_id)
+            # UPDATE: simpler sampling of observations from look_up and look_down
+            obs = sim.render("semantic")
 
+            # for v in agent._sensors.values():
+            #     v.set_transformation_from_spec()
+            #     obs = sim.get_observations_at(
+            #         pt, q, keep_agent_at_new_pose=True
+            #     )
+            # cov += compute_pixel_coverage(obs["semantic"], object_id)
+
+            cov += compute_pixel_coverage(obs, object_id)
         return cov, pt, q, "Success"
 
     def _visualize_rejected_viewpoints(x, y, z, iou):
@@ -332,12 +332,6 @@ def build_goal(
         goal_direction[1] = 0
 
         q = _direction_to_quaternion(goal_direction)
-
-        import os
-
-        import imageio
-
-        from habitat.utils.visualizations.utils import observations_to_image
 
         obs = sim.get_observations_at(pt, q, keep_agent_at_new_pose=True)
         rejected_out_path = "data/images/rejected"
@@ -366,14 +360,11 @@ def build_goal(
     n_orig_poses = len(candidate_poses_ious_orig)
     n_too_far_rejected = 0
     n_down_not_navigable_rejected = 0
-    n_nan_goal_direction = 0
     for p in candidate_poses_ious_orig:
         if p[-1] == "too_far":
             n_too_far_rejected += 1
         elif p[-1] == "down_unnavigable":
             n_down_not_navigable_rejected += 1
-        elif p[-1] == "Nan goal direction":
-            n_nan_goal_direction += 1
     candidate_poses_ious_orig_2 = [
         p for p in candidate_poses_ious_orig if p[0] > 0
     ]
@@ -387,36 +378,36 @@ def build_goal(
     n_island_candidates_rejected = len(candidate_poses_ious_orig_2) - len(
         candidate_poses_ious
     )
-
     best_iou = (
         max(v[0] for v in candidate_poses_ious)
         if len(candidate_poses_ious) != 0
         else 0
     )
 
-
+    error_info_str = []
     # [DEBUG]
     if best_iou <= 0.00:
         ntot = n_orig_poses
         nic = n_island_candidates_rejected
         nur = n_too_far_rejected
         ndn = n_down_not_navigable_rejected
-        ngd = n_nan_goal_direction
-        print(f"-------- Object {object_name_id}_{object_id} ignored")
-        print(f"[{nic:6d}/{ntot:6d}] candidates rejected due to island radius")
-        print(f"[{nur:6d}/{ntot:6d}] rejected due to too far error")
-        print(f"[{ndn:6d}/{ntot:6d}] rejected due to down not navigable")
-        print(f"[{ngd:6d}/{ntot:6d}] rejected due to nan goal direction")
-        return None
+        error_info_str = [f"-------- Object ID: {object_name_id}_{object_id}:"]
+        error_info_str.append(f"[{nic}/{ntot}] rejected due to island radius")
+        error_info_str.append(f"[{nur}/{ntot}] rejected due to too far")
+        error_info_str.append(
+            f"[{ndn}/{ntot}] rejected because the surface below is unnavigable"
+        )
+
+        print("\n".join(error_info_str))
 
     # [UPDATE]
     keep_thresh = 0.001
 
     # [DEBUG]: visualize views from rejected viewpoints
-    # for p in candidate_poses_ious:
-    #     if p[0] <= keep_thresh:
-    #         x, y, z = p[1].tolist()
-    #         _visualize_rejected_viewpoints(x, y, z, p[0])
+    #     for p in candidate_poses_ious:
+    #         if p[0] <= keep_thresh:
+    #             x, y, z = p[1].tolist()
+    #             _visualize_rejected_viewpoints(x, y, z, p[0])
 
     view_locations = [
         ObjectViewLocation(
@@ -425,24 +416,140 @@ def build_goal(
         for iou, pt, q, _ in candidate_poses_ious
         if iou is not None and iou > keep_thresh
     ]
+    island_view_locations = [
+        ObjectViewLocation(AgentState(pt.tolist()), q)
+        for iou, pt, q, _ in candidate_poses_ious_orig_2
+        if sim.island_radius(pt) < ISLAND_RADIUS_LIMIT
+    ]
+    iou_rejected_view_locations = [
+        ObjectViewLocation(AgentState(pt.tolist()), q)
+        for iou, pt, q, _ in candidate_poses_ious_orig
+        if iou <= keep_thresh and iou >= 0
+    ]
+    too_far_view_locations = [
+        ObjectViewLocation(AgentState(pt.tolist()), q)
+        for iou, pt, q, reason in candidate_poses_ious_orig
+        if iou < 0 and reason == "too_far"
+    ]
+    down_unnavigable_view_locations = [
+        ObjectViewLocation(AgentState(pt.tolist()), q)
+        for iou, pt, q, reason in candidate_poses_ious_orig
+        if iou < 0 and reason == "down_unnavigable"
+    ]
 
     view_locations = sorted(view_locations, reverse=True, key=lambda v: v.iou)
-    if len(view_locations) == 0:
+
+    # [DEBUG]: visualize approved and rejected viewpoints on topdown maps
+    object_position_on_floor = np.array(object_position).copy()
+    if len(view_locations) > 0:
+        object_position_on_floor[1] = view_locations[0].agent_state.position[1]
+    else:
+        while True:
+            navigable_point = sim.sample_navigable_point()
+            if sim.island_radius(navigable_point) >= ISLAND_RADIUS_LIMIT:
+                break
+
+        object_position_on_floor[1] = navigable_point[1]
+
+    topdown_map = get_topdown_map(
+        sim, start_pos=object_position_on_floor, marker=None
+    )
+
+    for view in view_locations:  # all valid points in green
+        topdown_map = get_topdown_map(
+            sim,
+            start_pos=view.agent_state.position,
+            topdown_map=topdown_map,
+            marker="circle",
+            radius=2,
+            color=COLOR_PALETTE["green"],
+        )
+    for view in island_view_locations:  # island points in black
+        topdown_map = get_topdown_map(
+            sim,
+            start_pos=view.agent_state.position,
+            topdown_map=topdown_map,
+            marker="circle",
+            radius=2,
+            color=COLOR_PALETTE["black"],
+        )
+    for view in iou_rejected_view_locations:  # iou rejected points in red
+        topdown_map = get_topdown_map(
+            sim,
+            start_pos=view.agent_state.position,
+            topdown_map=topdown_map,
+            marker="circle",
+            radius=2,
+            color=COLOR_PALETTE["red"],
+        )
+    for view in too_far_view_locations:  # too far errors in blue
+        topdown_map = get_topdown_map(
+            sim,
+            start_pos=view.agent_state.position,
+            topdown_map=topdown_map,
+            marker="circle",
+            radius=2,
+            color=COLOR_PALETTE["lighter_blue"],
+        )
+    for view in down_unnavigable_view_locations:  # too far errors in blue
+        topdown_map = get_topdown_map(
+            sim,
+            start_pos=view.agent_state.position,
+            topdown_map=topdown_map,
+            marker="circle",
+            radius=2,
+            color=COLOR_PALETTE["yellow"],
+        )
+
+    topdown_map = get_topdown_map(
+        sim,
+        start_pos=object_position_on_floor,
+        topdown_map=topdown_map,
+        marker="circle",
+        radius=6,
+        color=COLOR_PALETTE["red"],
+    )
+    topdown_map = draw_obj_bbox_on_topdown_map(topdown_map, object_aabb, sim)
+
+    if best_iou <= 0 or len(view_locations) == 0:
         print(
             f"No valid views found for {object_category_name} {object_name_id}_{object_id} in {sim.habitat_config.SCENE}: {best_iou}"
         )
-        return None
+        h = topdown_map.shape[0]
+        topdown_map = cv2.copyMakeBorder(
+            topdown_map,
+            0,
+            125,
+            0,
+            0,
+            cv2.BORDER_CONSTANT,
+            value=COLOR_PALETTE["white"],
+        )
+        error_info_str.append(
+            f"[{len(iou_rejected_view_locations)}/{n_orig_poses}] rejected due to IoU visibility."
+        )
+        for i, line in enumerate(error_info_str):
+            if "too far" in line:
+                color = COLOR_PALETTE["lighter_blue"]
+            elif "unnavigable" in line:
+                color = COLOR_PALETTE["yellow"]
+            elif "IoU visibility" in line:
+                color = COLOR_PALETTE["red"]
+            else:
+                color = COLOR_PALETTE["black"]
 
-    # [DEBUG]: visualize approved viewpoints on topdown maps
-    # from data.scripts.floorplanner.utils.utils import get_topdown_map
-    # import cv2
-    # object_position_tmp = object_position
-    # object_position_tmp[1] = view_locations[0].agent_state.position[1]
-    # topdown_map = get_topdown_map(sim, start_pos=object_position, marker='circle', radius=5, color=(0,0,255))
-    # for view in view_locations:
-    #     topdown_map = get_topdown_map(sim, start_pos=view.agent_state.position, topdown_map=topdown_map, marker='circle', radius=2)
+            topdown_map = cv2.putText(
+                topdown_map,
+                line,
+                (10, h + 25 * i + 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                color,
+                1,
+                cv2.LINE_AA,
+            )
 
-    # cv2.imwrite(f'topdown_map_{object_name_id}_{object_category_name}.png', topdown_map)
+        return None, topdown_map
 
     # [DEBUG]: visualize views from approved viewpoints
     # for view in view_locations:
@@ -450,12 +557,6 @@ def build_goal(
     #         view.agent_state.position, view.agent_state.rotation
     #     )
 
-    #     from habitat.utils.visualizations.utils import (
-    #        observations_to_image,
-    #     )
-    #     import imageio
-    #     import os
-    #     import cv2
     #     rgb_obs = np.ascontiguousarray(obs['rgb'][..., :3])
     #     sem_obs = (obs["semantic"] == object_id).astype(np.uint8) * 255
     #     contours, _ = cv2.findContours(sem_obs, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
@@ -478,7 +579,7 @@ def build_goal(
         object_name=object_name_id,
     )
 
-    return goal
+    return goal, topdown_map
 
 
 def _create_episode(
@@ -627,9 +728,6 @@ def generate_objectnav_episode(
                 episode_count += 1
                 yield episode
                 break
-            # else:
-            #     if 'Cosmos' in sim.habitat_config.SCENE:
-            #         print(f'=====> Incompatible episode on retry {retry}/{number_retries_per_target}')
 
         if retry == number_retries_per_target - 1:
             raise RuntimeError("Unable to find valid starting location")
@@ -700,9 +798,9 @@ def generate_objectnav_episode_v2(
         distance_to_clusters <= furthest_dist_limit
     )
     if same_floor_flag:
-        # # [UPDATE] Ensure that cluster is on same floor as ALL object viewpoint
+        # # [UPDATE] Ensure that cluster is on same floor as ANY object viewpoint
         for i, cluster_info in enumerate(cluster_centers):
-            valid_mask[i] = valid_mask[i] & np.all(
+            valid_mask[i] = valid_mask[i] & np.any(
                 np.abs(cluster_info["center"][1] - target_positions[:, 1])
                 < 0.5
             )
@@ -713,6 +811,10 @@ def generate_objectnav_episode_v2(
             valid_clusters.append(cluster_centers[i])
 
     if len(valid_clusters) == 0:
+        # visualizing clusters
+        # topdown_map = get_topdown_map(sim, marker=None)
+        # for c in cluster_centers:
+        #     topdown_map = get_topdown_map(sim, start_pos=c['center'], marker='circle', radius=2, color=COLOR_PALETTE['green'], topdown_map=topdown_map)
         raise RuntimeError(
             f"No valid clusters: {len(valid_clusters)}/{len(cluster_centers)}"
         )
