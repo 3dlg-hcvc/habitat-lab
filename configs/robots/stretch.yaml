@@ -4,7 +4,7 @@ SIMULATOR:
   AGENT_0:
     SENSORS: ['RGB_SENSOR', 'DEPTH_SENSOR']
     HEIGHT: 1.41  # From https://hello-robot.com/product
-    RADIUS: 0.34  # From https://hello-robot.com/product
+    RADIUS: 0.17  # From https://hello-robot.com/product
   HABITAT_SIM_V0:
     ALLOW_SLIDING: False  # This is really important
   RGB_SENSOR:
