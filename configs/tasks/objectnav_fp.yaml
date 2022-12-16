@@ -45,5 +45,5 @@ TASK:
 DATASET:
   TYPE: ObjectNav-v1
   SPLIT: train
-  DATA_PATH: data/datasets/objectnav/floorplanner/v1/{split}/{split}.json.gz
-  SCENES_DIR: data/scene_datasets/floorplanner/v1/configs/assets/compressed-glb-arch-only
+  DATA_PATH: data/datasets/objectnav/floorplanner/v0.1.1/{split}/{split}.json.gz
+  SCENES_DIR: data/scene_datasets/floorplanner/v1/configs/scenes
