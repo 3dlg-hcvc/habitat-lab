@@ -1,16 +1,17 @@
+# V0.1.0 refers to the standard (6 category) ObjectNav setting
 BASE_TASK_CONFIG_PATH: "configs/tasks/objectnav_fp.yaml"
 CMD_TRAILING_OPTS: ["TASK_CONFIG.ENVIRONMENT.ITERATOR_OPTIONS.MAX_SCENE_REPEAT_STEPS", "50000"]
 ENV_NAME: "NavRLEnv"
 SIMULATOR_GPU_ID: 0
 TORCH_GPU_ID: 0
 VIDEO_OPTION: []
-TENSORBOARD_DIR: "data/training/floorplanner/v0.1.1/tb"
-VIDEO_DIR: "data/training/floorplanner/v0.1.1/videos"
+TENSORBOARD_DIR: "data/training/floorplanner/v0.1.0/tb"
+VIDEO_DIR: "data/training/floorplanner/v0.1.0/videos"
 VIDEO_RENDER_ALL_INFO: True
 TEST_EPISODE_COUNT: -1
-EVAL_CKPT_PATH_DIR: "data/training/floorplanner/v0.1.1/checkpoints"
-NUM_ENVIRONMENTS: 54
-CHECKPOINT_FOLDER: "data/training/floorplanner/v0.1.1/checkpoints"
+EVAL_CKPT_PATH_DIR: "data/training/floorplanner/v0.1.0/checkpoints"
+NUM_ENVIRONMENTS: 60
+CHECKPOINT_FOLDER: "data/training/floorplanner/v0.1.0/checkpoints"
 TRAINER_NAME: "ddppo"
 SENSORS: ["DEPTH_SENSOR", "RGB_SENSOR"]
 SCENE_DATASET: "data/scene_datasets/floorplanner/v1/hab-fp.scene_dataset_config.json"
