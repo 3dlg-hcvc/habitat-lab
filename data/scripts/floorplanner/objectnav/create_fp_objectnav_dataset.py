@@ -49,6 +49,9 @@ SCENES_ROOT = "data/scene_datasets/floorplanner/v1"
 GOAL_CATEGORIES_PATH = (
     "data/scene_datasets/floorplanner/v1/goal_categories.yaml"
 )
+GOAL_6_CATEGORIES_PATH = (
+    "data/scene_datasets/floorplanner/v1/goal_categories_6.yaml"
+)
 SCENE_SPLITS_PATH = os.path.join(SCENES_ROOT, "scene_splits.yaml")
 
 COMPRESSION = ".gz"
@@ -72,15 +75,18 @@ FAILURE_VIZ_FOLDER = os.path.join(
     OUTPUT_DATASET_FOLDER, "viz", "failure_cases"
 )
 NUM_GPUS = len(GPUtil.getAvailable(limit=256))
-TASKS_PER_GPU = 16
+TASKS_PER_GPU = 20
 deviceIds = GPUtil.getAvailable(order="memory")
 
 with open(GOAL_CATEGORIES_PATH, "r") as f:
     goal_categories = yaml.safe_load(f)
 
-category_to_scene_annotation_category_id = {"misc": len(goal_categories)}
+with open(GOAL_6_CATEGORIES_PATH, "r") as f:
+    goal_6_categories = yaml.safe_load(f)
 
+category_to_scene_annotation_category_id = {}
 for cat in goal_categories:
+    # if cat in goal_6_categories:
     category_to_scene_annotation_category_id[cat] = goal_categories.index(cat)
 
 
@@ -113,9 +119,7 @@ def get_objnav_config(i, scene):
         deviceId = i % NUM_GPUS
     else:
         deviceId = deviceIds[0]
-    objnav_config.SIMULATOR.HABITAT_SIM_V0.GPU_DEVICE_ID = (
-        deviceId
-    )
+    objnav_config.SIMULATOR.HABITAT_SIM_V0.GPU_DEVICE_ID = deviceId
 
     objnav_config.SIMULATOR.SCENE = scene
     objnav_config.SIMULATOR.SCENE_DATASET = SCENE_DATASET_CFG
@@ -222,7 +226,8 @@ def generate_scene(args):
             node.semantic_id = obj_id
 
         if (
-            semantic_id == category_to_scene_annotation_category_id["misc"]
+            semantic_id
+            not in category_to_scene_annotation_category_id.values()
         ):  # non-goal category
             continue
 
@@ -467,7 +472,7 @@ def generate_scene(args):
                     pbar.update()
                     eps_generated += 1
                     goal_obj_id = ep.info["closest_goal_object_id"]
-                    
+
                     # keeping track of distances from each goal object (for plotting)
                     if goal_obj_id not in goals["distances"].keys():
                         goals["distances"][goal_obj_id] = [
@@ -523,6 +528,7 @@ def generate_scene(args):
                 plt.xlabel("distance to goal")
                 plt.tight_layout()
                 plt.savefig(goal_viz_output_filename)
+                plt.close()
 
     os.makedirs(osp.dirname(fname), exist_ok=True)
     save_dataset(dset, fname)
@@ -580,6 +586,33 @@ if __name__ == "__main__":
 
     # Generate episodes for all scenes
     os.makedirs(OUTPUT_DATASET_FOLDER, exist_ok=True)
+
+    # Create split outer files
+    if args.split == "*":
+        splits = ["train", "val", "test"]
+    else:
+        splits = [args.split]
+    for split in splits:
+        dset = habitat.datasets.make_dataset("ObjectNav-v1")
+        dset.category_to_task_category_id = (
+            category_to_scene_annotation_category_id
+        )
+        dset.category_to_scene_annotation_category_id = (
+            category_to_scene_annotation_category_id
+        )
+        global_dset = (
+            f"{OUTPUT_DATASET_FOLDER}/{split}/{split}.json{COMPRESSION}"
+        )
+        if os.path.exists(global_dset):
+            os.remove(global_dset)
+        if not os.path.exists(os.path.dirname(global_dset)):
+            os.mkdir(os.path.dirname(global_dset))
+        jsons_gz = glob.glob(
+            f"{OUTPUT_DATASET_FOLDER}/{split}/content/*.json{COMPRESSION}"
+        )
+
+        save_dataset(dset, global_dset)
+
     with mp_ctx.Pool(GPU_THREADS, maxtasksperchild=2) as pool, tqdm.tqdm(
         total=len(inputs)
     ) as pbar, open(
@@ -597,26 +630,3 @@ if __name__ == "__main__":
         print(subtotals)
 
         json.dump({"total_objects:": total_all, "subtotal": subtotals}, f)
-
-    if args.split == "*":
-        splits = ["train", "val", "test"]
-    else:
-        splits = [args.split]
-
-    # Create minival split and outer files
-    for split in splits:
-        dset = habitat.datasets.make_dataset("ObjectNav-v1")
-        dset.category_to_task_category_id = category_to_task_category_id
-        dset.category_to_scene_annotation_category_id = (
-            category_to_task_category_id
-        )
-        global_dset = f"{OUTPUT_JSON_FOLDER}/{split}/{split}.json{COMPRESSION}"
-        if os.path.exists(global_dset):
-            os.remove(global_dset)
-        if not os.path.exists(os.path.dirname(global_dset)):
-            os.mkdir(os.path.dirname(global_dset))
-        jsons_gz = glob.glob(
-            f"{OUTPUT_JSON_FOLDER}/{split}/content/*.json{COMPRESSION}"
-        )
-
-        save_dataset(dset, global_dset)
