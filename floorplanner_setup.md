@@ -21,15 +21,11 @@
 
 2. Install [habitat-lab](https://github.com/facebookresearch/habitat-lab):
 
-    Install included submodule that points to [custom fork](https://github.com/mukulkhanna/habitat-lab/tree/floorplanner).
+    Install habitat-lab from this [custom fork](https://github.com/mukulkhanna/habitat-lab/tree/floorplanner) (current repository).
 
     This fork was off habitat-lab v0.2.2 + includes a couple of additional merged PRs. We are yet to port to hab-lab v0.2.3.
 
     ```bash
-    cd fphab
-    git submodule init habitat-lab
-    git submodule update habitat-lab
-
     cd habitat-lab
     pip install -e habitat-lab  # install habitat_lab
     pip install -e habitat-baselines  # install habitat_baselines
