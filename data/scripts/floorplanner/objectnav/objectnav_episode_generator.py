@@ -45,6 +45,8 @@ from habitat_sim.utils.common import (
     quat_to_coeffs,
 )
 
+VISIBILITY_THRESHOLD = 0.001
+
 
 def _direction_to_quaternion(direction_vector: np.array):
     origin_vector = np.array([0, 0, -1])
@@ -280,6 +282,7 @@ def build_goal(
                 None,
                 "too_far",
             )  # viewpoint too far from goal object
+
         if not down_is_navigable(pt):
             return (
                 -1,
@@ -290,6 +293,15 @@ def build_goal(
 
         pf = sim.pathfinder
         pt = np.array(pf.snap_point(pt))
+
+        # snapped point on an island
+        if sim.island_radius(pt) < ISLAND_RADIUS_LIMIT:
+            return (
+                -1,
+                pt,
+                None,
+                "on_island_after_snapping",
+            )
 
         goal_direction = object_position - pt
 
@@ -319,6 +331,15 @@ def build_goal(
             # cov += compute_pixel_coverage(obs["semantic"], object_id)
 
             cov += compute_pixel_coverage(obs, object_id)
+
+        if cov < VISIBILITY_THRESHOLD:
+            return (
+                -1,
+                pt,
+                None,
+                "low_visibility",
+            )
+
         return cov, pt, q, "Success"
 
     def _visualize_rejected_viewpoints(x, y, z, iou):
@@ -358,54 +379,38 @@ def build_goal(
 
     candidate_poses_ious_orig = list(_get_iou(*pos) for pos in candidate_poses)
     n_orig_poses = len(candidate_poses_ious_orig)
-    n_too_far_rejected = 0
-    n_down_not_navigable_rejected = 0
+    (
+        n_too_far_rejected,
+        n_down_unnavigable_rejected,
+        n_island_candidates_rejected,
+        n_low_visibility,
+    ) = (0, 0, 0, 0)
+
+    candidate_poses_ious = []
+
     for p in candidate_poses_ious_orig:
         if p[-1] == "too_far":
             n_too_far_rejected += 1
         elif p[-1] == "down_unnavigable":
-            n_down_not_navigable_rejected += 1
-    candidate_poses_ious_orig_2 = [
-        p for p in candidate_poses_ious_orig if p[0] > 0
+            n_down_unnavigable_rejected += 1
+        elif p[-1] == "on_island_after_snapping":
+            n_island_candidates_rejected += 1
+        elif p[-1] == "low_visibility":
+            n_low_visibility += 1
+        elif p[0] > 0:
+            candidate_poses_ious.append(p)
+
+    viewpoint_info_str = [
+        f"-------- Object ID: {object_name_id}_{object_id}:",
+        f"[{n_island_candidates_rejected}/{n_orig_poses}] rejected due to island radius.",
+        f"[{n_too_far_rejected}/{n_orig_poses}] rejected due to being too far.",
+        f"[{n_down_unnavigable_rejected}/{n_orig_poses}] rejected because the surface below is unnavigable.",
+        f"[{n_low_visibility}/{n_orig_poses}] rejected due to insufficient visibility.",
     ]
-
-    # Reject candidate_poses that do not satisfy island radius constraints
-    candidate_poses_ious = [
-        p
-        for p in candidate_poses_ious_orig_2
-        if sim.island_radius(p[1]) >= ISLAND_RADIUS_LIMIT
-    ]
-    n_island_candidates_rejected = len(candidate_poses_ious_orig_2) - len(
-        candidate_poses_ious
-    )
-    best_iou = (
-        max(v[0] for v in candidate_poses_ious)
-        if len(candidate_poses_ious) != 0
-        else 0
-    )
-
-    error_info_str = []
-    # [DEBUG]
-    if best_iou <= 0.00:
-        ntot = n_orig_poses
-        nic = n_island_candidates_rejected
-        nur = n_too_far_rejected
-        ndn = n_down_not_navigable_rejected
-        error_info_str = [f"-------- Object ID: {object_name_id}_{object_id}:"]
-        error_info_str.append(f"[{nic}/{ntot}] rejected due to island radius")
-        error_info_str.append(f"[{nur}/{ntot}] rejected due to too far")
-        error_info_str.append(
-            f"[{ndn}/{ntot}] rejected because the surface below is unnavigable"
-        )
-
-        print("\n".join(error_info_str))
-
-    # [UPDATE]
-    keep_thresh = 0.001
 
     # [DEBUG]: visualize views from rejected viewpoints
     #     for p in candidate_poses_ious:
-    #         if p[0] <= keep_thresh:
+    #         if p[0] <= VISIBILITY_THRESHOLD:
     #             x, y, z = p[1].tolist()
     #             _visualize_rejected_viewpoints(x, y, z, p[0])
 
@@ -414,27 +419,6 @@ def build_goal(
             AgentState(pt.tolist(), quat_to_coeffs(q).tolist()), iou
         )
         for iou, pt, q, _ in candidate_poses_ious
-        if iou is not None and iou > keep_thresh
-    ]
-    island_view_locations = [
-        ObjectViewLocation(AgentState(pt.tolist()), q)
-        for iou, pt, q, _ in candidate_poses_ious_orig_2
-        if sim.island_radius(pt) < ISLAND_RADIUS_LIMIT
-    ]
-    iou_rejected_view_locations = [
-        ObjectViewLocation(AgentState(pt.tolist()), q)
-        for iou, pt, q, _ in candidate_poses_ious_orig
-        if iou <= keep_thresh and iou >= 0
-    ]
-    too_far_view_locations = [
-        ObjectViewLocation(AgentState(pt.tolist()), q)
-        for iou, pt, q, reason in candidate_poses_ious_orig
-        if iou < 0 and reason == "too_far"
-    ]
-    down_unnavigable_view_locations = [
-        ObjectViewLocation(AgentState(pt.tolist()), q)
-        for iou, pt, q, reason in candidate_poses_ious_orig
-        if iou < 0 and reason == "down_unnavigable"
     ]
 
     view_locations = sorted(view_locations, reverse=True, key=lambda v: v.iou)
@@ -445,6 +429,7 @@ def build_goal(
         object_position_on_floor[1] = view_locations[0].agent_state.position[1]
     else:
         while True:
+            # TODO: think of better way than ->
             navigable_point = sim.sample_navigable_point()
             if sim.island_radius(navigable_point) >= ISLAND_RADIUS_LIMIT:
                 break
@@ -455,50 +440,25 @@ def build_goal(
         sim, start_pos=object_position_on_floor, marker=None
     )
 
-    for view in view_locations:  # all valid points in green
+    for p in candidate_poses_ious_orig:
+        if p[-1] == "too_far":
+            color = COLOR_PALETTE["lighter_blue"]
+        elif p[-1] == "down_unnavigable":
+            color = COLOR_PALETTE["yellow"]
+        elif p[-1] == "on_island_after_snapping":
+            color = COLOR_PALETTE["black"]
+        elif p[-1] == "low_visibility":
+            color = COLOR_PALETTE["pink"]
+        elif p[0] > 0:  # valid view points
+            color = COLOR_PALETTE["green"]
+
         topdown_map = get_topdown_map(
             sim,
-            start_pos=view.agent_state.position,
+            start_pos=p[1],
             topdown_map=topdown_map,
             marker="circle",
             radius=2,
-            color=COLOR_PALETTE["green"],
-        )
-    for view in island_view_locations:  # island points in black
-        topdown_map = get_topdown_map(
-            sim,
-            start_pos=view.agent_state.position,
-            topdown_map=topdown_map,
-            marker="circle",
-            radius=2,
-            color=COLOR_PALETTE["black"],
-        )
-    for view in iou_rejected_view_locations:  # iou rejected points in red
-        topdown_map = get_topdown_map(
-            sim,
-            start_pos=view.agent_state.position,
-            topdown_map=topdown_map,
-            marker="circle",
-            radius=2,
-            color=COLOR_PALETTE["red"],
-        )
-    for view in too_far_view_locations:  # too far errors in blue
-        topdown_map = get_topdown_map(
-            sim,
-            start_pos=view.agent_state.position,
-            topdown_map=topdown_map,
-            marker="circle",
-            radius=2,
-            color=COLOR_PALETTE["lighter_blue"],
-        )
-    for view in down_unnavigable_view_locations:  # too far errors in blue
-        topdown_map = get_topdown_map(
-            sim,
-            start_pos=view.agent_state.position,
-            topdown_map=topdown_map,
-            marker="circle",
-            radius=2,
-            color=COLOR_PALETTE["yellow"],
+            color=color,
         )
 
     topdown_map = get_topdown_map(
@@ -511,10 +471,8 @@ def build_goal(
     )
     topdown_map = draw_obj_bbox_on_topdown_map(topdown_map, object_aabb, sim)
 
-    if best_iou <= 0 or len(view_locations) == 0:
-        print(
-            f"No valid views found for {object_category_name} {object_name_id}_{object_id} in {sim.habitat_config.SCENE}: {best_iou}"
-        )
+    # add info about rejected/accepted viewpoints on visualizations
+    if len(view_locations) == 0:
         h = topdown_map.shape[0]
         topdown_map = cv2.copyMakeBorder(
             topdown_map,
@@ -525,17 +483,15 @@ def build_goal(
             cv2.BORDER_CONSTANT,
             value=COLOR_PALETTE["white"],
         )
-        error_info_str.append(
-            f"[{len(iou_rejected_view_locations)}/{n_orig_poses}] rejected due to IoU visibility."
-        )
-        for i, line in enumerate(error_info_str):
+
+        for i, line in enumerate(viewpoint_info_str):
             if "too far" in line:
                 color = COLOR_PALETTE["lighter_blue"]
             elif "unnavigable" in line:
                 color = COLOR_PALETTE["yellow"]
-            elif "IoU visibility" in line:
+            elif "insufficient visibility" in line:
                 color = COLOR_PALETTE["red"]
-            else:
+            elif "island" in line:
                 color = COLOR_PALETTE["black"]
 
             topdown_map = cv2.putText(
@@ -549,6 +505,10 @@ def build_goal(
                 cv2.LINE_AA,
             )
 
+        print(
+            f"No valid views found for {object_category_name} {object_name_id}_{object_id} in {sim.habitat_config.SCENE}"
+        )
+        print("\n".join(viewpoint_info_str))
         return None, topdown_map
 
     # [DEBUG]: visualize views from approved viewpoints
