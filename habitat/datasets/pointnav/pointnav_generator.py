@@ -25,7 +25,7 @@ try:
     from habitat.sims.habitat_simulator.habitat_simulator import HabitatSim
 except ImportError:
     habitat_sim = BaseException
-ISLAND_RADIUS_LIMIT = 3.5 # before: 1.5
+ISLAND_RADIUS_LIMIT = 1.5 # before: 1.5
 
 
 def _ratio_sample_rate(ratio: float, ratio_threshold: float) -> float:

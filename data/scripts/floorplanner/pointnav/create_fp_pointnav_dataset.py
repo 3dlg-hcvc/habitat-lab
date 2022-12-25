@@ -21,7 +21,7 @@ from habitat.datasets.pointnav.pointnav_generator import (
 )
 from habitat_sim.nav import NavMeshSettings
 
-NUM_EPISODES_PER_SCENE = int(1)
+NUM_EPISODES_PER_SCENE = int(100)
 
 splits_info_path = "data/scene_datasets/ai2thor-hab/scene_splits.yaml"
 dataset_config_path = (
@@ -54,13 +54,11 @@ def _generate_fn(scene, split, args):
     )
     
     dset = habitat.datasets.make_dataset("PointNav-v1")
-    pdb.set_trace()
     dset.episodes = list(
         generate_pointnav_episode(
             sim, NUM_EPISODES_PER_SCENE, is_gen_shortest_path=False
         )
     )
-    pdb.set_trace()
     if args.viz:
         ep = dset.episodes[0]
         viz_out_file = os.path.join(
@@ -111,8 +109,10 @@ def generate_fp_pointnav_dataset(args):
 
         # [for debugging]
         for scene in tqdm(scenes):
+            print(scene)
+            if scene == 'FloorPlan_Train_Generated':
+                continue
             _generate_fn(scene, split, args)
-            pdb.set_trace()
 
         path = os.path.join(output_dataset_path, split, split + ".json.gz")
         os.makedirs(os.path.dirname(path), exist_ok=True)
