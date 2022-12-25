@@ -12,6 +12,7 @@ from itertools import repeat
 import cv2
 import yaml
 from tqdm import tqdm
+import pdb
 
 import habitat
 from data.scripts.floorplanner.utils.utils import get_topdown_map_with_path
@@ -20,14 +21,14 @@ from habitat.datasets.pointnav.pointnav_generator import (
 )
 from habitat_sim.nav import NavMeshSettings
 
-NUM_EPISODES_PER_SCENE = int(100)
+NUM_EPISODES_PER_SCENE = int(1)
 
-splits_info_path = "data/scene_datasets/floorplanner/v1/scene_splits.yaml"
+splits_info_path = "data/scene_datasets/ai2thor-hab/scene_splits.yaml"
 dataset_config_path = (
-    "data/scene_datasets/floorplanner/v1/hab-fp.scene_dataset_config.json"
+    "data/scene_datasets/ai2thor-hab/ai2thor.scene_dataset_config.json"
 )
 
-output_dataset_path = "data/datasets/pointnav/floorplanner/v1"
+output_dataset_path = "data/datasets/pointnav/ai2thor-hab/v0"
 
 
 def _generate_fn(scene, split, args):
@@ -51,14 +52,15 @@ def _generate_fn(scene, split, args):
     sim.recompute_navmesh(
         sim.pathfinder, navmesh_settings, include_static_objects=True
     )
-
+    
     dset = habitat.datasets.make_dataset("PointNav-v1")
+    pdb.set_trace()
     dset.episodes = list(
         generate_pointnav_episode(
             sim, NUM_EPISODES_PER_SCENE, is_gen_shortest_path=False
         )
     )
-
+    pdb.set_trace()
     if args.viz:
         ep = dset.episodes[0]
         viz_out_file = os.path.join(
@@ -101,15 +103,16 @@ def generate_fp_pointnav_dataset(args):
 
         scenes = scene_splits[split]
 
-        with multiprocessing.Pool(4) as pool, tqdm(total=len(scenes)) as pbar:
-            for _ in pool.starmap(
-                _generate_fn, zip(scenes, repeat(split), repeat(args))
-            ):
-                pbar.update()
+        # with multiprocessing.Pool(4) as pool, tqdm(total=len(scenes)) as pbar:
+        #     for _ in pool.starmap(
+        #         _generate_fn, zip(scenes, repeat(split), repeat(args))
+        #     ):
+        #         pbar.update()
 
         # [for debugging]
-        # for scene in tqdm(scenes):
-        #     _generate_fn(scene, split, args)
+        for scene in tqdm(scenes):
+            _generate_fn(scene, split, args)
+            pdb.set_trace()
 
         path = os.path.join(output_dataset_path, split, split + ".json.gz")
         os.makedirs(os.path.dirname(path), exist_ok=True)

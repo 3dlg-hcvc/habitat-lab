@@ -5,7 +5,7 @@ from data.scripts.floorplanner.utils.utils import get_topdown_map
 from habitat_sim.nav import NavMeshSettings
 
 dataset_config_path = (
-    "data/scene_datasets/floorplanner/v1/hab-fp.scene_dataset_config.json"
+    "data/scene_datasets/ai2thor-hab/ai2thor.scene_dataset_config.json"
 )
 
 
@@ -40,5 +40,5 @@ def visualize_fp_scenes(scenes):
 
 
 if __name__ == "__main__":
-    scenes = ["102344349"]
+    scenes = ["FloorPlan1_physics"]
     visualize_fp_scenes(scenes)
