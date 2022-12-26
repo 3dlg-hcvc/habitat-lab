@@ -25,7 +25,7 @@ try:
     from habitat.sims.habitat_simulator.habitat_simulator import HabitatSim
 except ImportError:
     habitat_sim = BaseException
-ISLAND_RADIUS_LIMIT = 1.5 # before: 1.5
+ISLAND_RADIUS_LIMIT = 1.0 # before: 1.5
 
 
 def _ratio_sample_rate(ratio: float, ratio_threshold: float) -> float:
@@ -139,12 +139,17 @@ def generate_pointnav_episode(
     episode_count = 0
     while episode_count < num_episodes or num_episodes < 0:
         target_position = sim.sample_navigable_point()
+        while target_position[1] > 0.5:
+            target_position = sim.sample_navigable_point()
 
         if sim.island_radius(target_position) < ISLAND_RADIUS_LIMIT:
             continue
 
         for _retry in range(number_retries_per_target):
             source_position = sim.sample_navigable_point()
+            while source_position[1] > 0.5:
+                source_position = sim.sample_navigable_point()
+                print('source_position', source_position[1])
 
             is_compatible, dist = is_compatible_episode(
                 source_position,

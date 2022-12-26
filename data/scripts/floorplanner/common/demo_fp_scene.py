@@ -28,9 +28,12 @@ def visualize_fp_scenes(scenes):
         )
 
         pos = sim.pathfinder.get_random_navigable_point()
+        while pos[1] > 0.5:
+           pos = sim.pathfinder.get_random_navigable_point()
         # pos = [-6.7892866 ,  0.19999951, -4.6983275 ]
         rot = sim.get_agent_state().rotation
         sim.set_agent_state(pos, rot)
+        print(pos)
 
         topdown_map = get_topdown_map(sim, pos, rot)
         cv2.imwrite(f"ego_obs_{scene}.png", sim.render()[:, :, ::-1])
@@ -40,5 +43,5 @@ def visualize_fp_scenes(scenes):
 
 
 if __name__ == "__main__":
-    scenes = ["FloorPlan1_physics"]
+    scenes = ["FloorPlan6_physics"]
     visualize_fp_scenes(scenes)
