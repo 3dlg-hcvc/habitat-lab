@@ -28,7 +28,7 @@ dataset_config_path = (
     "data/scene_datasets/ai2thor-hab/ai2thor.scene_dataset_config.json"
 )
 
-output_dataset_path = "data/datasets/pointnav/ai2thor-hab/v0.1"
+output_dataset_path = "data/datasets/pointnav/ai2thor-hab/v0.0.2"
 
 
 def _generate_fn(scene, split, args):
