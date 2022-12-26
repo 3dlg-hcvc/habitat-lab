@@ -23,7 +23,7 @@ import numba
 import numpy as np
 from gym import spaces
 
-from habitat.config import Config
+from habitat.config import read_write
 from habitat.core.dataset import Dataset, BaseEpisode, Episode, EpisodeIterator
 from habitat.core.embodied_task import EmbodiedTask, Metrics
 from habitat.core.simulator import Observations, Simulator
