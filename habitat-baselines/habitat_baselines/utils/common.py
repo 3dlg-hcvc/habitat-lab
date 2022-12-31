@@ -390,6 +390,7 @@ def generate_video(
     fps: int = 10,
     verbose: bool = True,
     keys_to_include_in_name: Optional[List[str]] = None,
+    episode_metadata = None
 ) -> None:
     r"""Generate video according to specified information.
 
@@ -430,6 +431,12 @@ def generate_video(
     video_name = f"episode={episode_id}-ckpt={checkpoint_idx}-" + "-".join(
         metric_strs
     )
+
+    if episode_metadata is not None:
+        ep_scene_id = episode_metadata.scene_id[episode_metadata.scene_id.rfind('/') + 1:]
+        ep_goal_category = episode_metadata.object_category
+        video_name += f"-scene={ep_scene_id}-category={ep_goal_category}"
+
     if "disk" in video_option:
         assert video_dir is not None
         images_to_video(
