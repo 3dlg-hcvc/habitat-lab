@@ -43,5 +43,5 @@ def visualize_fp_scenes(scenes):
 
 
 if __name__ == "__main__":
-    scenes = ["FloorPlan6_physics"]
+    scenes = ["FloorPlan530_physics"]
     visualize_fp_scenes(scenes)

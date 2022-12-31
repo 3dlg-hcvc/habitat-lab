@@ -45,17 +45,14 @@ os.environ["MAGNUM_LOG"] = "quiet"
 os.environ["HABITAT_SIM_LOG"] = "quiet"
 os.environ["GLOG_minloglevel"] = "2"
 
-SCENES_ROOT = "data/scene_datasets/floorplanner/v1"
+SCENES_ROOT = "data/scene_datasets/ai2thor-hab"
 GOAL_CATEGORIES_PATH = (
-    "data/scene_datasets/floorplanner/v1/goal_categories.yaml"
-)
-GOAL_6_CATEGORIES_PATH = (
-    "data/scene_datasets/floorplanner/v1/goal_categories_6.yaml"
+    "data/scene_datasets/ai2thor-hab/goal_categories_6.yaml"
 )
 SCENE_SPLITS_PATH = os.path.join(SCENES_ROOT, "scene_splits.yaml")
 
 COMPRESSION = ".gz"
-VERSION_ID = "v0.1.1"
+VERSION_ID = "v0.0.2"
 OBJECT_ON_SAME_FLOOR = True  # [UPDATED]
 NUM_EPISODES = 50000
 MIN_OBJECT_DISTANCE = 1.0
@@ -64,7 +61,7 @@ MAX_OBJECT_DISTANCE = 30.0
 with open(SCENE_SPLITS_PATH, "r") as f:
     FP_SCENE_SPLITS = yaml.safe_load(f)
 
-OUTPUT_DATASET_FOLDER = f"data/datasets/objectnav/floorplanner/{VERSION_ID}"
+OUTPUT_DATASET_FOLDER = f"data/datasets/objectnav/ai2thor-hab/{VERSION_ID}"
 EPISODES_DATASET_VIZ_FOLDER = os.path.join(
     OUTPUT_DATASET_FOLDER, "viz", "episodes"
 )
@@ -81,20 +78,18 @@ deviceIds = GPUtil.getAvailable(order="memory")
 with open(GOAL_CATEGORIES_PATH, "r") as f:
     goal_categories = yaml.safe_load(f)
 
-with open(GOAL_6_CATEGORIES_PATH, "r") as f:
-    goal_6_categories = yaml.safe_load(f)
+with open(f"{SCENES_ROOT}/configs/object_semantic_id_mapping.json") as f:
+    mapping = json.load(f)
 
 category_to_scene_annotation_category_id = {}
-for cat in goal_categories:
-    # if cat in goal_6_categories:
-    category_to_scene_annotation_category_id[cat] = goal_categories.index(cat)
-
+for key in goal_categories:
+    category_to_scene_annotation_category_id[key] = mapping[key]
 
 def get_objnav_config(i, scene):
 
-    CFG = "configs/tasks/objectnav_fp.yaml"
+    CFG = "configs/tasks/objectnav_ai2thor.yaml"
     SCENE_DATASET_CFG = os.path.join(
-        SCENES_ROOT, "hab-fp.scene_dataset_config.json"
+        SCENES_ROOT, "ai2thor.scene_dataset_config.json"
     )
 
     objnav_config = get_config(CFG).clone()
@@ -554,7 +549,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--split",
-        choices=["train", "val", "test", "*"],
+        choices=["train", "val", "test", "all"],
         required=True,
         type=str,
     )
@@ -563,7 +558,7 @@ if __name__ == "__main__":
     mp_ctx = multiprocessing.get_context("forkserver")
 
     np.random.seed(1234)
-    if args.split == "*":
+    if args.split == "all":
         inputs = []
         for split in ["train", "val", "test"]:
             inputs += prepare_inputs(split)
@@ -578,8 +573,9 @@ if __name__ == "__main__":
     # total_all = 0
     # subtotals = []
     # for inp in tqdm.tqdm(inputs):
-    #     if inp[1] != '105515403_173104449':
+    #     if inp[1] == "FloorPlan513_physics":
     #         continue
+    #     print(inp[1])
     #     scene, subtotal, subtotal_by_cat, fname = generate_scene(inp)
     #     total_all += subtotal
     #     subtotals.append(subtotal_by_cat)
@@ -588,7 +584,7 @@ if __name__ == "__main__":
     os.makedirs(OUTPUT_DATASET_FOLDER, exist_ok=True)
 
     # Create split outer files
-    if args.split == "*":
+    if args.split == "all":
         splits = ["train", "val", "test"]
     else:
         splits = [args.split]
@@ -607,9 +603,6 @@ if __name__ == "__main__":
             os.remove(global_dset)
         if not os.path.exists(os.path.dirname(global_dset)):
             os.mkdir(os.path.dirname(global_dset))
-        jsons_gz = glob.glob(
-            f"{OUTPUT_DATASET_FOLDER}/{split}/content/*.json{COMPRESSION}"
-        )
 
         save_dataset(dset, global_dset)
 
