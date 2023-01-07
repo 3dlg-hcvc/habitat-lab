@@ -2,30 +2,21 @@ import cv2
 
 import habitat
 from data.scripts.floorplanner.utils.utils import get_topdown_map
+from habitat.config import read_write
 from habitat_sim.nav import NavMeshSettings
 
-dataset_config_path = (
-    "data/scene_datasets/floorplanner/v1/hab-fp.scene_dataset_config.json"
+task_config_path = (
+    "habitat-lab/habitat/config/benchmark/nav/objectnav/objectnav_fp.yaml"
 )
 
 
 def visualize_fp_scenes(scenes):
     for scene in scenes:
-        cfg = habitat.get_config()
-        cfg.defrost()
-        cfg.SIMULATOR.SCENE_DATASET = dataset_config_path
-        cfg.SIMULATOR.SCENE = scene
-        cfg.SIMULATOR.AGENT_0.SENSORS = ["RGB_SENSOR", "DEPTH_SENSOR"]
-        cfg.SIMULATOR.HABITAT_SIM_V0.ENABLE_PHYSICS = True
-        cfg.freeze()
+        cfg = habitat.get_config(task_config_path)
+        with read_write(cfg):
+            cfg.habitat.simulator.scene = scene
 
-        sim = habitat.sims.make_sim("Sim-v0", config=cfg.SIMULATOR)
-
-        navmesh_settings = NavMeshSettings()
-        navmesh_settings.set_defaults()
-        sim.recompute_navmesh(
-            sim.pathfinder, navmesh_settings, include_static_objects=True
-        )
+        sim = habitat.sims.make_sim("Sim-v0", config=cfg.habitat.simulator)
 
         pos = sim.pathfinder.get_random_navigable_point()
         # pos = [-6.7892866 ,  0.19999951, -4.6983275 ]
