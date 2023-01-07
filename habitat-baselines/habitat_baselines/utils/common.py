@@ -432,10 +432,11 @@ def generate_video(
         metric_strs
     )
 
-    if episode_metadata is not None:
-        ep_scene_id = episode_metadata.scene_id[episode_metadata.scene_id.rfind('/') + 1:]
-        ep_goal_category = episode_metadata.object_category
-        video_name += f"-scene={ep_scene_id}-category={ep_goal_category}"
+    # TODO: Modify filename based on updated metadata fields
+    # if episode_metadata is not None:
+        # ep_scene_id = episode_metadata.scene_id[episode_metadata.scene_id.rfind('/') + 1:]
+        # ep_goal_category = episode_metadata.object_category
+        # video_name += f"-scene={ep_scene_id}-category={ep_goal_category}"
 
     if "disk" in video_option:
         assert video_dir is not None

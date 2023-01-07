@@ -124,10 +124,11 @@ class ObjectNavDatasetV1(PointNavDatasetV1):
             deserialized = self.dedup_goals(deserialized)
 
         for k, v in deserialized["goals_by_category"].items():
-            if "goals" in v.keys():
-                self.goals_by_category[k] = [
-                    self.__deserialize_goal(g) for g in v["goals"]
-                ]
+            if type(v) != list:
+                if "goals" in v.keys():
+                    self.goals_by_category[k] = [
+                        self.__deserialize_goal(g) for g in v["goals"]
+                    ]
             else:
                 self.goals_by_category[k] = [
                     self.__deserialize_goal(g) for g in v
