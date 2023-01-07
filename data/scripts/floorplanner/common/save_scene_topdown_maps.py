@@ -5,20 +5,19 @@ from tqdm import tqdm
 
 import habitat
 from data.scripts.floorplanner.utils.utils import get_topdown_map
+from habitat.config import read_write
 from habitat.utils.visualizations import maps
-from habitat_sim.nav import NavMeshSettings
 
 scenes_path = (
     "data/scene_datasets/floorplanner/v1/assets/compressed-glb-arch-only"
 )
-dataset_config_path = (
-    "data/scene_datasets/floorplanner/v1/hab-fp.scene_dataset_config.json"
+task_config_path = (
+    "habitat-lab/habitat/config/benchmark/nav/objectnav/objectnav_fp.yaml"
 )
-cfg_path = "configs/robots/stretch.yaml"
 topdown_map_out_path = "data/scene_datasets/floorplanner/v1/viz/topdown_maps"
 os.makedirs(topdown_map_out_path, exist_ok=True)
 
-NUM_TRIES = 20
+NUM_TRIES = 10
 
 
 def save_topdown_maps(scenes):
@@ -28,24 +27,12 @@ def save_topdown_maps(scenes):
         if os.path.exists(topdown_map_path):
             continue
 
-        cfg = habitat.get_config(cfg_path)
-        cfg.defrost()
-        cfg.SIMULATOR.SCENE_DATASET = dataset_config_path
-        cfg.SIMULATOR.SCENE = scene
-        cfg.SIMULATOR.AGENT_0.SENSORS = ["RGB_SENSOR", "DEPTH_SENSOR"]
-        cfg.SIMULATOR.HABITAT_SIM_V0.ENABLE_PHYSICS = True
-        cfg.freeze()
+        cfg = habitat.get_config(task_config_path)
 
-        sim = habitat.sims.make_sim("Sim-v0", config=cfg.SIMULATOR)
+        with read_write(cfg):
+            cfg.habitat.simulator.scene = scene
 
-        navmesh_settings = NavMeshSettings()
-        navmesh_settings.set_defaults()
-        navmesh_settings.agent_radius = cfg.SIMULATOR.AGENT_0.RADIUS
-        navmesh_settings.agent_height = cfg.SIMULATOR.AGENT_0.HEIGHT
-
-        sim.recompute_navmesh(
-            sim.pathfinder, navmesh_settings, include_static_objects=True
-        )
+        sim = habitat.sims.make_sim("Sim-v0", config=cfg.habitat.simulator)
 
         max_nav_area_pos = None
         max_nav_area = 0

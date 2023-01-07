@@ -3,7 +3,6 @@ import cv2
 import habitat
 from data.scripts.floorplanner.utils.utils import get_topdown_map
 from habitat.config import read_write
-from habitat_sim.nav import NavMeshSettings
 
 task_config_path = (
     "habitat-lab/habitat/config/benchmark/nav/objectnav/objectnav_fp.yaml"
