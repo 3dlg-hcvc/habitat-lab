@@ -15,16 +15,16 @@ from tqdm import tqdm
 
 import habitat
 from data.scripts.floorplanner.utils.utils import get_topdown_map_with_path
+from habitat.config import read_write
 from habitat.datasets.pointnav.pointnav_generator import (
     generate_pointnav_episode,
 )
-from habitat_sim.nav import NavMeshSettings
 
-NUM_EPISODES_PER_SCENE = int(100)
+NUM_EPISODES_PER_SCENE = 100
 
 splits_info_path = "data/scene_datasets/floorplanner/v1/scene_splits.yaml"
-dataset_config_path = (
-    "data/scene_datasets/floorplanner/v1/hab-fp.scene_dataset_config.json"
+task_config_path = (
+    "habitat-lab/habitat/config/benchmark/nav/objectnav/objectnav_fp.yaml"
 )
 
 output_dataset_path = "data/datasets/pointnav/floorplanner/v1"
@@ -38,19 +38,11 @@ def _generate_fn(scene, split, args):
     if os.path.exists(out_file):
         return
 
-    cfg = habitat.get_config()
-    cfg.defrost()
-    cfg.SIMULATOR.SCENE = scene
-    cfg.SIMULATOR.SCENE_DATASET = dataset_config_path
-    cfg.freeze()
+    cfg = habitat.get_config(task_config_path)
+    with read_write(cfg):
+        cfg.habitat.simulator.scene = scene
 
-    sim = habitat.sims.make_sim("Sim-v0", config=cfg.SIMULATOR)
-
-    navmesh_settings = NavMeshSettings()
-    navmesh_settings.set_defaults()
-    sim.recompute_navmesh(
-        sim.pathfinder, navmesh_settings, include_static_objects=True
-    )
+    sim = habitat.sims.make_sim("Sim-v0", config=cfg.habitat.simulator)
 
     dset = habitat.datasets.make_dataset("PointNav-v1")
     dset.episodes = list(
