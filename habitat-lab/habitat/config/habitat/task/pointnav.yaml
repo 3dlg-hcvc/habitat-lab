@@ -10,6 +10,7 @@ defaults:
     - success
     - spl
     - distance_to_goal_reward
+    - top_down_map
   - lab_sensors:
     - pointgoal_with_gps_compass_sensor
   - _self_
