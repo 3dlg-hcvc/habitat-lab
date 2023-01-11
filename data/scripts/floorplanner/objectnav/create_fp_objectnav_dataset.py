@@ -45,23 +45,24 @@ os.environ["MAGNUM_LOG"] = "quiet"
 os.environ["HABITAT_SIM_LOG"] = "quiet"
 os.environ["GLOG_minloglevel"] = "2"
 
-SCENES_ROOT = "data/scene_datasets/ai2thor-hab"
-GOAL_CATEGORIES_PATH = (
-    "data/scene_datasets/ai2thor-hab/goal_categories_6.yaml"
-)
-SCENE_SPLITS_PATH = os.path.join(SCENES_ROOT, "scene_splits.yaml")
+dataset_name = "robothor"
+
+SCENES_ROOT = "data/scene_datasets/ai2thor-hab/v0.0.4"
+GOAL_CATEGORIES_PATH = os.path.join(SCENES_ROOT, "goal_categories_6.yaml")
+
+SCENE_SPLITS_PATH = os.path.join(SCENES_ROOT, f"{dataset_name}_scene_splits.yaml")
 
 COMPRESSION = ".gz"
-VERSION_ID = "v0.0.2"
+VERSION_ID = "v0.0.4"
 OBJECT_ON_SAME_FLOOR = True  # [UPDATED]
-NUM_EPISODES = 50000
+NUM_EPISODES = 2000
 MIN_OBJECT_DISTANCE = 1.0
 MAX_OBJECT_DISTANCE = 30.0
 
 with open(SCENE_SPLITS_PATH, "r") as f:
     FP_SCENE_SPLITS = yaml.safe_load(f)
 
-OUTPUT_DATASET_FOLDER = f"data/datasets/objectnav/ai2thor-hab/{VERSION_ID}"
+OUTPUT_DATASET_FOLDER = f"data/datasets/objectnav/{dataset_name}/{VERSION_ID}"
 EPISODES_DATASET_VIZ_FOLDER = os.path.join(
     OUTPUT_DATASET_FOLDER, "viz", "episodes"
 )

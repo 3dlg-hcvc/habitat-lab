@@ -46,4 +46,4 @@ DATASET:
   TYPE: ObjectNav-v1
   SPLIT: train
   SCENES_DIR: data/scene_datasets/ai2thor-hab/v0.0.4/configs/scenes
-  DATA_PATH: data/datasets/objectnav/ai2thor-hab/v0.0.4/{split}/{split}.json.gz
+  DATA_PATH: data/datasets/objectnav/robothor/v0.0.4/{split}/{split}.json.gz

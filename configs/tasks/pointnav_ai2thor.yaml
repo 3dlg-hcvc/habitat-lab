@@ -27,5 +27,5 @@ TASK:
 DATASET:
   TYPE: PointNav-v1
   SPLIT: train
-  SCENES_DIR: data/scene_datasets/ai2thor-hab/configs/scenes
-  DATA_PATH: data/datasets/pointnav/ai2thor-hab/v0.0.2/{split}/{split}.json.gz
+  SCENES_DIR: data/scene_datasets/ai2thor-hab/v0.0.3/configs/scenes
+  DATA_PATH: data/datasets/pointnav/ai2thor-hab/v0.0.3/{split}/{split}.json.gz

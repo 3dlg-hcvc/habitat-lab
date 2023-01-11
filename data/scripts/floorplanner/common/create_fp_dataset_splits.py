@@ -41,8 +41,8 @@ def generate_fp_dataset_splits(scenes_dir_path, split_ratios):
 
 
 if __name__ == "__main__":
-    scenes_dir_path = "data/scene_datasets/ai2thor-hab/configs/scenes"
-    splits_yaml_output_path = "data/scene_datasets/ai2thor-hab/"
+    scenes_dir_path = "data/scene_datasets/ai2thor-hab/v0.0.4/configs/scenes"
+    splits_yaml_output_path = "data/scene_datasets/ai2thor-hab/v0.0.4"
     train_split_ratio, test_split_ratio, val_split_ratio = 0.6, 0.2, 0.2
     generate_fp_dataset_splits(
         scenes_dir_path, (train_split_ratio, test_split_ratio, val_split_ratio)

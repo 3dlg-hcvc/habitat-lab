@@ -23,12 +23,12 @@ from habitat_sim.nav import NavMeshSettings
 
 NUM_EPISODES_PER_SCENE = int(100)
 
-splits_info_path = "data/scene_datasets/ai2thor-hab/scene_splits.yaml"
+splits_info_path = "data/scene_datasets/ai2thor-hab/v0.0.3/scene_splits.yaml"
 dataset_config_path = (
-    "data/scene_datasets/ai2thor-hab/ai2thor.scene_dataset_config.json"
+    "data/scene_datasets/ai2thor-hab/v0.0.3/ai2thor.scene_dataset_config.json"
 )
 
-output_dataset_path = "data/datasets/pointnav/ai2thor-hab/v0.0.2"
+output_dataset_path = "data/datasets/pointnav/ai2thor-hab/v0.0.3"
 
 
 def _generate_fn(scene, split, args):
