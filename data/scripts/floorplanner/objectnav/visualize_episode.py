@@ -43,7 +43,7 @@ os.environ["GLOG_minloglevel"] = "2"
 
 SCENES_ROOT = "data/scene_datasets/floorplanner/v1"
 
-COLOR_MAP = np.array(sns.color_palette("tab10", 30)) * 255 #assuming max 30 goals on a scene TODO: confirm
+COLOR_MAP = sns.color_palette("Blues", as_cmap=True) 
 
 def get_objnav_config(scene):
 
@@ -118,6 +118,32 @@ def visualize_all_start_points(episodes, scene, category, sim, out_path):
     episode_viz_output_filename = os.path.join(out_path, f"{scene}_{category}.jpg")
     cv2.imwrite(episode_viz_output_filename, topdown_map[:, :, ::-1])
 
+def visualize_per_episode(episodes, scene, category, sim, out_path):
+
+    cat_episodes = [ep for ep in episodes["episodes"] if ep["object_category"] == category]
+    for ep in tqdm.tqdm(cat_episodes):
+
+        goal_obj_id = ep["info"]["closest_goal_object_id"]
+
+        goal = [goal for goal in episodes['goals_by_category'][f'{scene}_{category}']['goals'] if goal['object_id'] == goal_obj_id][0]
+        topdown_map = _visualize_goal(goal['position'], goal['object_id'], None, sim, COLOR_PALETTE["red"])
+        topdown_map = _visualize_viewpoints(goal['view_points'], topdown_map, sim, COLOR_PALETTE['black'])
+
+        topdown_map = get_topdown_map(
+            sim,
+            start_pos=ep["start_position"],
+            marker="circle",
+            color=COLOR_PALETTE["orange"],
+            radius=3,
+            topdown_map=topdown_map,
+            boundary=True
+        )
+
+        os.makedirs(out_path, exist_ok=True)
+        
+        episode_viz_output_filename = os.path.join(out_path, f"{scene}_{category}_{ep['episode_id']}.jpg")
+        cv2.imwrite(episode_viz_output_filename, topdown_map[:, :, ::-1])    
+
 def _visualize_goal(object_position, object_id, topdown_map, sim, color):
 
     object_position_on_floor = np.array(object_position).copy()
@@ -153,17 +179,19 @@ def _visualize_viewpoints(viewpoints, topdown_map, sim, color):
             marker="circle",
             radius=2,
             color=color,
+            boundary=True,
         )
 
     return topdown_map
 
-def visualize_all_start_end_points(episodes, scene, category, sim, out_path):
+def visualize_all_start_end_points_cc_instance(episodes, scene, category, sim, out_path):
+    COLOR_MAP = np.array(sns.color_palette("tab10", 30)) * 255 #assuming max 30 goals on a scene TODO: confirm
 
     cat_episodes = [ep for ep in episodes["episodes"] if ep["object_category"] == category]
 
     topdown_map = None
     goal_set = set([g['object_id'] for g in episodes['goals_by_category'][f'{scene}_{category}']['goals']])
-    print(goal_set)
+
     goal_to_idx = {k: idx for idx, k in enumerate(goal_set)}
 
     # visualize goals
@@ -189,31 +217,38 @@ def visualize_all_start_end_points(episodes, scene, category, sim, out_path):
     episode_viz_output_filename = os.path.join(out_path, f"{scene}_{category}.jpg")
     cv2.imwrite(episode_viz_output_filename, topdown_map[:, :, ::-1])
 
-
-def visualize_per_episode(episodes, scene, category, sim, out_path):
+def visualize_all_start_end_points(episodes, scene, category, sim, out_path):
 
     cat_episodes = [ep for ep in episodes["episodes"] if ep["object_category"] == category]
+
+    topdown_map = None
+    goal_set = set([g['object_id'] for g in episodes['goals_by_category'][f'{scene}_{category}']['goals']])
+
+    goal_to_idx = {k: idx for idx, k in enumerate(goal_set)}
+
+    # visualize goals
+    for goal in episodes['goals_by_category'][f'{scene}_{category}']['goals']:
+        topdown_map = _visualize_goal(goal['position'], goal['object_id'], topdown_map, sim, np.array(COLOR_MAP(1.))[:3]*255)
+        topdown_map = _visualize_viewpoints(goal['view_points'], topdown_map, sim, COLOR_PALETTE["black"])
+
     for ep in tqdm.tqdm(cat_episodes):
 
         goal_obj_id = ep["info"]["closest_goal_object_id"]
-
-        goal = [goal for goal in episodes['goals_by_category'][f'{scene}_{category}']['goals'] if goal['object_id'] == goal_obj_id][0]
-        topdown_map = _visualize_goal(goal['position'], goal['object_id'], None, sim, COLOR_PALETTE["red"])
-        topdown_map = _visualize_viewpoints(goal['view_points'], topdown_map, sim, COLOR_PALETTE['black'])
 
         topdown_map = get_topdown_map(
             sim,
             start_pos=ep["start_position"],
             marker="circle",
-            color=COLOR_PALETTE["orange"],
+            color=np.array(COLOR_MAP(ep["info"]["euclidean_distance"] / 10.))[:3]*255, # using 10 as max dist TODO: confirm / check estimate
             radius=3,
             topdown_map=topdown_map,
+            boundary=False,
         )
-
-        os.makedirs(out_path, exist_ok=True)
-        
-        episode_viz_output_filename = os.path.join(out_path, f"{scene}_{category}_{ep['episode_id']}.jpg")
-        cv2.imwrite(episode_viz_output_filename, topdown_map[:, :, ::-1])    
+    
+    os.makedirs(out_path, exist_ok=True)
+    
+    episode_viz_output_filename = os.path.join(out_path, f"{scene}_{category}.jpg")
+    cv2.imwrite(episode_viz_output_filename, topdown_map[:, :, ::-1])
 
 def main(args):
 
@@ -232,6 +267,8 @@ def main(args):
         visualize_per_episode(episodes, scene, category, sim, args.out_path)
     elif args.only_start:
         visualize_all_start_points(episodes, scene, category, sim, args.out_path)
+    elif args.cc_instance:
+        visualize_all_start_end_points_cc_instance(episodes, scene, category, sim, args.out_path)
     else:
         visualize_all_start_end_points(episodes, scene, category, sim, args.out_path)
 
@@ -242,6 +279,7 @@ if __name__ == '__main__':
     parser.add_argument('--category', type=str, default="cabinet")
     parser.add_argument('--only_start', action='store_true', help="generate top down map for with all start points only")
     parser.add_argument('--per_episode', action='store_true', help="generate top down map for each episode with start point and goal")
+    parser.add_argument('--cc_instance', action='store_true', help="color code the start points by the closest instance")
     parser.add_argument('--out_path', type=str, default='./', help="path to output the topdown maps")
     args = parser.parse_args()
     main(args)

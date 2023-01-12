@@ -29,6 +29,7 @@ def get_topdown_map(
     marker="sprite",
     color=COLOR_PALETTE["blue"],
     radius=8,
+    boundary=False,
 ):
     if start_pos is None:
         start_pos = sim.get_agent_state().position
@@ -75,6 +76,15 @@ def get_topdown_map(
             color=color,
             thickness=-1,
         )
+
+        if boundary:
+            topdown_map = cv2.circle(
+                topdown_map,
+                agent_grid_pos_source[::-1],
+                radius=radius+2,
+                color=COLOR_PALETTE['white'],
+                thickness=1,
+            )
 
     return topdown_map
 
