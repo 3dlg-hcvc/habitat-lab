@@ -70,10 +70,15 @@ def overlay_frame(frame, info, additional=None):
     lines = []
     flattened_info = flatten_dict(info)
     for k, v in flattened_info.items():
-        if isinstance(v, str):
-            lines.append(f"{k}: {v}")
-        else:
-            lines.append(f"{k}: {v:.2f}")
+        if "top_down" not in k and "collisionsis_collision" not in k:
+            if isinstance(v, str):
+                lines.append(f"{k}: {v}")
+            else:
+                try:
+                    lines.append(f"{k}: {v:.2f}")
+                except:
+                    import pdb
+                    pdb.set_trace()
     if additional is not None:
         lines.extend(additional)
 

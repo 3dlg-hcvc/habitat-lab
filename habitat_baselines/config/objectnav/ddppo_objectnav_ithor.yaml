@@ -4,11 +4,11 @@ ENV_NAME: "NavRLEnv"
 SIMULATOR_GPU_ID: 0
 TORCH_GPU_ID: 0
 VIDEO_OPTION: []
-TENSORBOARD_DIR: "data/training/objectnav/ithor/v0.0.4/tb"
+TENSORBOARD_DIR: "data/training/objectnav/ithor/v0.0.4/tb_eval_vis"
 VIDEO_DIR: "data/training/objectnav/ithor/v0.0.4/videos"
 VIDEO_RENDER_ALL_INFO: True
 TEST_EPISODE_COUNT: -1
-EVAL_CKPT_PATH_DIR: "data/training/objectnav/ithor/v0.0.4/checkpoints"
+EVAL_CKPT_PATH_DIR: "data/training/objectnav/ithor/v0.0.4/checkpoints/ckpt.11.pth"
 NUM_ENVIRONMENTS: 8
 CHECKPOINT_FOLDER: "data/training/objectnav/ithor/v0.0.4/checkpoints"
 TRAINER_NAME: "ddppo"
