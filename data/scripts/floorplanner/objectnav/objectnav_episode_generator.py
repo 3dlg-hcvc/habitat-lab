@@ -315,9 +315,9 @@ def build_goal(
         # UPDATE: simpler sampling of observations from look_up and look_down
         sim.set_agent_state(pt, q)
         for act in [
-            HabitatSimActions.LOOK_DOWN,
-            HabitatSimActions.LOOK_UP,
-            HabitatSimActions.LOOK_UP,
+            HabitatSimActions.look_down,
+            HabitatSimActions.look_up,
+            HabitatSimActions.look_up,
         ]:
             agent.act(act)
             # UPDATE: simpler sampling of observations from look_up and look_down
@@ -506,7 +506,7 @@ def build_goal(
             )
 
         print(
-            f"No valid views found for {object_category_name} {object_name_id}_{object_id} in {sim.habitat_config.SCENE}"
+            f"No valid views found for {object_category_name} {object_name_id}_{object_id} in {sim.habitat_config.scene}"
         )
         print("\n".join(viewpoint_info_str))
         return None, topdown_map
@@ -670,7 +670,7 @@ def generate_objectnav_episode(
 
                 episode = _create_episode(
                     episode_id=episode_count,
-                    scene_id=sim.habitat_config.SCENE,
+                    scene_id=sim.habitat_config.scene,
                     start_position=source_position,
                     start_rotation=source_rotation,
                     shortest_paths=shortest_paths,
@@ -858,7 +858,7 @@ def generate_objectnav_episode_v2(
                         shortest_paths = [shortest_path]
                     episode = _create_episode(
                         episode_id=episode_id,
-                        scene_id=sim.habitat_config.SCENE,
+                        scene_id=sim.habitat_config.scene,
                         start_position=source_position,
                         start_rotation=source_rotation,
                         shortest_paths=shortest_paths,
@@ -914,7 +914,7 @@ def update_objectnav_episode_v2(
         shortest_paths = [shortest_path]
     episode_new = _create_episode(
         episode_id=episode.episode_id,
-        scene_id=sim.habitat_config.SCENE,
+        scene_id=sim.habitat_config.scene,
         start_position=episode.start_position,
         start_rotation=episode.start_rotation,
         shortest_paths=shortest_paths,
@@ -1028,7 +1028,7 @@ def generate_objectnav_episode_with_added_objects(
 
                 episode = _create_episode(
                     episode_id=episode_count,
-                    scene_id=sim.habitat_config.SCENE,
+                    scene_id=sim.habitat_config.scene,
                     start_position=source_position,
                     start_rotation=source_rotation,
                     shortest_paths=shortest_paths,

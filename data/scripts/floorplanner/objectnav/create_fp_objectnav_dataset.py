@@ -34,6 +34,7 @@ from data.scripts.floorplanner.utils.utils import (
     get_topdown_map,
 )
 from habitat.config.default import get_config
+from habitat.config import read_write
 from habitat.datasets.object_nav import object_nav_dataset
 from habitat.datasets.pointnav.pointnav_generator import ISLAND_RADIUS_LIMIT
 from habitat.tasks.rearrange.utils import get_aabb
@@ -92,25 +93,12 @@ for cat in goal_categories:
 
 def get_objnav_config(i, scene):
 
-    CFG = "configs/tasks/objectnav_fp.yaml"
+    TASK_CFG = "habitat-lab/habitat/config/benchmark/nav/objectnav/objectnav_fp.yaml"
     SCENE_DATASET_CFG = os.path.join(
         SCENES_ROOT, "hab-fp.scene_dataset_config.json"
     )
 
-    objnav_config = get_config(CFG).clone()
-    objnav_config.defrost()
-    objnav_config.TASK.SENSORS = []
-    objnav_config.SIMULATOR.AGENT_0.SENSORS = ["SEMANTIC_SENSOR", "RGB_SENSOR"]
-    FOV = 90
-    objnav_config.SIMULATOR.RGB_SENSOR.HFOV = FOV
-    objnav_config.SIMULATOR.DEPTH_SENSOR.HFOV = FOV
-    objnav_config.SIMULATOR.SEMANTIC_SENSOR.HFOV = FOV
-
-    objnav_config.SIMULATOR.SEMANTIC_SENSOR.WIDTH //= 2
-    objnav_config.SIMULATOR.SEMANTIC_SENSOR.HEIGHT //= 2
-    objnav_config.SIMULATOR.RGB_SENSOR.WIDTH //= 2
-    objnav_config.SIMULATOR.RGB_SENSOR.HEIGHT //= 2
-    objnav_config.TASK.MEASUREMENTS = []
+    objnav_config = get_config(TASK_CFG)#.clone()
 
     deviceIds = GPUtil.getAvailable(
         order="memory", limit=1, maxLoad=1.0, maxMemory=1.0
@@ -119,26 +107,43 @@ def get_objnav_config(i, scene):
         deviceId = i % NUM_GPUS
     else:
         deviceId = deviceIds[0]
-    objnav_config.SIMULATOR.HABITAT_SIM_V0.GPU_DEVICE_ID = deviceId
 
-    objnav_config.SIMULATOR.SCENE = scene
-    objnav_config.SIMULATOR.SCENE_DATASET = SCENE_DATASET_CFG
-    objnav_config.SIMULATOR.HABITAT_SIM_V0.ENABLE_PHYSICS = True
-    objnav_config.freeze()
+    with read_write(objnav_config):
+
+        # TODO: find a better way to do it.
+        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.semantic_sensor = objnav_config.habitat.simulator.agents.main_agent.sim_sensors.rgb_sensor
+        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.semantic_sensor.type = "HabitatSimSemanticSensor"
+        FOV = 90
+        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.rgb_sensor.hfov = FOV
+        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.depth_sensor.hfov = FOV
+        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.semantic_sensor.hfov = FOV
+        # TODO: confirm the width and height
+        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.semantic_sensor.width = 320
+        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.semantic_sensor.height = 240
+        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.rgb_sensor.width = 320
+        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.rgb_sensor.height = 240
+
+        objnav_config.habitat.simulator.habitat_sim_v0.gpu_device_id = deviceId
+        objnav_config.habitat.simulator.scene = scene
+        objnav_config.habitat.simulator.scene_dataset = SCENE_DATASET_CFG
+        objnav_config.habitat.simulator.habitat_sim_v0.enable_physics = True
+
+        objnav_config.habitat.task.measurements = {}
+
     return objnav_config
 
 
 def get_simulator(objnav_config):
-    sim = habitat.sims.make_sim("Sim-v0", config=objnav_config.SIMULATOR)
+    sim = habitat.sims.make_sim("Sim-v0", config=objnav_config.habitat.simulator)
 
-    # TODO: precompute navmeshes?
     navmesh_settings = habitat_sim.NavMeshSettings()
     navmesh_settings.set_defaults()
-    navmesh_settings.agent_radius = objnav_config.SIMULATOR.AGENT_0.RADIUS
-    navmesh_settings.agent_height = objnav_config.SIMULATOR.AGENT_0.HEIGHT
+    navmesh_settings.agent_radius = objnav_config.habitat.simulator.agents.main_agent.radius
+    navmesh_settings.agent_height = objnav_config.habitat.simulator.agents.main_agent.height
     sim.recompute_navmesh(
         sim.pathfinder, navmesh_settings, include_static_objects=True
     )
+
     return sim
 
 
@@ -280,7 +285,7 @@ def generate_scene(args):
     else:
         # goals_by_category = defaultdict(list)
         goals_by_category = {}
-        cell_size = objnav_config.SIMULATOR.AGENT_0.RADIUS / 2.0
+        cell_size = objnav_config.habitat.simulator.agents.main_agent.radius / 2.0
         categories_to_counts = {}
 
         for obj in tqdm.tqdm(objects, desc="Objects for %s:" % scene):
@@ -437,7 +442,7 @@ def generate_scene(args):
         k: {"goals": v["goals"]} for k, v in goals_by_category.items()
     }
     dset.goals_by_category = dset_goals_by_category
-    scene_dataset_config = objnav_config.SIMULATOR.SCENE_DATASET
+    scene_dataset_config = objnav_config.habitat.simulator.scene_dataset
 
     with tqdm.tqdm(total=NUM_EPISODES, desc=scene) as pbar:
 
@@ -578,7 +583,7 @@ if __name__ == "__main__":
     # total_all = 0
     # subtotals = []
     # for inp in tqdm.tqdm(inputs):
-    #     if inp[1] != '105515403_173104449':
+    #     if inp[1] != '102343992':
     #         continue
     #     scene, subtotal, subtotal_by_cat, fname = generate_scene(inp)
     #     total_all += subtotal
