@@ -9,7 +9,7 @@ VIDEO_DIR: "data/training/objectnav/ithor/v0.0.5/videos"
 VIDEO_RENDER_ALL_INFO: True
 TEST_EPISODE_COUNT: -1
 EVAL_CKPT_PATH_DIR: "data/training/objectnav/ithor/v0.0.5/checkpoints"
-NUM_ENVIRONMENTS: 1
+NUM_ENVIRONMENTS: 8
 CHECKPOINT_FOLDER: "data/training/objectnav/ithor/v0.0.5/checkpoints"
 TRAINER_NAME: "ddppo"
 SENSORS: ["DEPTH_SENSOR", "RGB_SENSOR"]

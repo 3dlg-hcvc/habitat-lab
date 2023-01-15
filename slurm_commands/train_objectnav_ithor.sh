@@ -30,4 +30,4 @@ export MAGNUM_LOG="quiet"
 export HABITAT_SIM_LOG=quiet
 
 set -x
-srun python -u habitat-baselines/habitat_baselines/run.py --exp-config habitat-baselines/habitat_baselines/config/objectnav/ddppo_objectnav_ithor.yaml --run-type train
+srun python -u habitat_baselines/run.py --exp-config habitat_baselines/config/objectnav/ddppo_objectnav_ithor.yaml --run-type train

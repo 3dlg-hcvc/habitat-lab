@@ -1,6 +1,6 @@
 echo "starting setup ${SLURM_NODEID}"
 
-rm /scratch/hanxiao/scene-builder-datasets/fphab/habitat-lab/data
+rm -rf /scratch/hanxiao/scene-builder-datasets/fphab/habitat-lab/data
 
 cp /home/hanxiao/data.zip $SLURM_TMPDIR/
 unzip $SLURM_TMPDIR/data.zip -d $SLURM_TMPDIR/
