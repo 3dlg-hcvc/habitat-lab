@@ -4,13 +4,13 @@ ENV_NAME: "NavRLEnv"
 SIMULATOR_GPU_ID: 0
 TORCH_GPU_ID: 0
 VIDEO_OPTION: []
-TENSORBOARD_DIR: "data/training/objectnav/robothor/v0.0.5/tb"
-VIDEO_DIR: "data/training/objectnav/robothor/v0.0.5/videos"
+TENSORBOARD_DIR: "experiments/training/objectnav/robothor/v0.0.5/tb"
+VIDEO_DIR: "experiments/training/objectnav/robothor/v0.0.5/videos"
 VIDEO_RENDER_ALL_INFO: True
 TEST_EPISODE_COUNT: -1
-EVAL_CKPT_PATH_DIR: "data/training/objectnav/robothor/v0.0.5/checkpoints"
+EVAL_CKPT_PATH_DIR: "experiments/training/objectnav/robothor/v0.0.5/checkpoints"
 NUM_ENVIRONMENTS: 48
-CHECKPOINT_FOLDER: "data/training/objectnav/robothor/v0.0.5/checkpoints"
+CHECKPOINT_FOLDER: "experiments/training/objectnav/robothor/v0.0.5/checkpoints"
 TRAINER_NAME: "ddppo"
 SENSORS: ["DEPTH_SENSOR", "RGB_SENSOR"]
 SCENE_DATASET: "data/scene_datasets/ai2thor-hab/v0.0.5/ai2thor.scene_dataset_config.json"
