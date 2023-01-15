@@ -47,13 +47,13 @@ os.environ["GLOG_minloglevel"] = "2"
 
 dataset_name = "robothor"
 
-SCENES_ROOT = "data/scene_datasets/ai2thor-hab/v0.0.4"
+SCENES_ROOT = "data/scene_datasets/ai2thor-hab/v0.0.5"
 GOAL_CATEGORIES_PATH = os.path.join(SCENES_ROOT, "goal_categories_6.yaml")
 
 SCENE_SPLITS_PATH = os.path.join(SCENES_ROOT, f"{dataset_name}_scene_splits.yaml")
 
 COMPRESSION = ".gz"
-VERSION_ID = "v0.0.4"
+VERSION_ID = "v0.0.5"
 OBJECT_ON_SAME_FLOOR = True  # [UPDATED]
 NUM_EPISODES = 2000
 MIN_OBJECT_DISTANCE = 1.0
