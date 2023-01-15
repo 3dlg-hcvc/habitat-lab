@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --account=def-msavva
+#SBATCH --account=def-angelx
 #SBATCH --nodes=1           # total nodes
 #SBATCH --ntasks-per-node=4
 #SBATCH --gres=gpu:a100:4        # how many GPUs per node
