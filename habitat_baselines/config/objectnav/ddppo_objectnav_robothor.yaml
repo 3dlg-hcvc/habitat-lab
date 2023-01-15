@@ -9,7 +9,7 @@ VIDEO_DIR: "experiments/training/objectnav/robothor/v0.0.5/videos"
 VIDEO_RENDER_ALL_INFO: True
 TEST_EPISODE_COUNT: -1
 EVAL_CKPT_PATH_DIR: "experiments/training/objectnav/robothor/v0.0.5/checkpoints"
-NUM_ENVIRONMENTS: 48
+NUM_ENVIRONMENTS: 42
 CHECKPOINT_FOLDER: "experiments/training/objectnav/robothor/v0.0.5/checkpoints"
 TRAINER_NAME: "ddppo"
 SENSORS: ["DEPTH_SENSOR", "RGB_SENSOR"]
