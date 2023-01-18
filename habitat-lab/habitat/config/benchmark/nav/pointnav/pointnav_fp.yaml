@@ -7,7 +7,7 @@ defaults:
 
 habitat:
   simulator:
-    scene_dataset: "data/scene_datasets/floorplanner/v1/hab-fp.scene_dataset_config.json"
+    scene_dataset: "data/scene_datasets/floorplanner/v0.2.0/hab-fp.scene_dataset_config.json"
     turn_angle: 30
     tilt_angle: 30
     action_space_config: "v1"

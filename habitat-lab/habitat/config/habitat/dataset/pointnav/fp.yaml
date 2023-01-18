@@ -6,5 +6,5 @@ defaults:
 
 type: PointNav-v1
 split: train
-data_path: data/datasets/pointnav/floorplanner/v1/{split}/{split}.json.gz
-scenes_dir: data/scene_datasets/floorplanner/v1/configs/scenes
+data_path: data/datasets/pointnav/floorplanner/v0.2.0/{split}/{split}.json.gz
+scenes_dir: data/scene_datasets/floorplanner/v0.2.0/configs/scenes
