@@ -27,6 +27,7 @@ import attr
 import numpy as np
 import torch
 from gym import spaces
+import pandas as pd
 from PIL import Image
 from torch import Size, Tensor
 from torch import nn as nn
@@ -720,6 +721,30 @@ def get_num_actions(action_space) -> int:
             )
 
     return num_actions
+
+
+def convert_episode_stats_dict_to_df(episode_stats_dict):
+    scene_ids, episode_ids = [], []
+    info_keys = list(list(episode_stats_dict.values())[0].values())[0].keys()
+    info = {}
+    for metric in info_keys:
+        info[metric] = []
+
+    for scene, episodes in episode_stats_dict.items():
+        for episode_id, episode_metrics in episodes.items():
+            scene_ids.append(scene)
+            episode_ids.append(episode_id)
+            
+            for metric in info_keys:
+                info[metric].append(episode_metrics[metric])
+
+    df = pd.DataFrame([])
+    df['scene_id'] = scene_ids
+    df['episode_id'] = episode_ids
+    for metric in info_keys:
+        df[metric] = info[metric]
+
+    return df
 
 
 class LagrangeInequalityCoefficient(nn.Module):

@@ -20,3 +20,4 @@ pandas
 seaborn
 trimesh
 scikit-learn
+GPUtil
