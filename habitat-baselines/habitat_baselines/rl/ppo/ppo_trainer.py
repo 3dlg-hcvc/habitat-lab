@@ -5,13 +5,19 @@
 # LICENSE file in the root directory of this source tree.
 
 import contextlib
+import gzip
+import json
 import os
+import pickle
 import random
 import time
 from collections import defaultdict, deque
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import seaborn as sns
 import torch
 import tqdm
 from gym import spaces
@@ -63,6 +69,7 @@ from habitat_baselines.rl.ppo import PPO
 from habitat_baselines.rl.ppo.policy import NetPolicy
 from habitat_baselines.utils.common import (
     batch_obs,
+    convert_episode_stats_dict_to_df,
     generate_video,
     get_num_actions,
     inference_mode,
@@ -964,6 +971,19 @@ class PPOTrainer(BaseRLTrainer):
         if config.habitat_baselines.verbose:
             logger.info(f"env config: {OmegaConf.to_yaml(config)}")
 
+        if config.habitat.task.type == "ObjectNav-v1":
+            dataset_path = config.habitat.dataset.data_path.format(
+                split=config.habitat.dataset.split
+            )
+            with gzip.open(dataset_path, "r") as fin:
+                data = json.loads(fin.read().decode("utf-8"))
+                self.category_to_id = data["category_to_task_category_id"]
+                self.id_to_category = {
+                    v: k for k, v in self.category_to_id.items()
+                }
+
+            per_category_eval_stats = {}
+
         self._init_envs(config, is_eval=True)
 
         action_space = self.envs.action_spaces[0]
@@ -1033,7 +1053,7 @@ class PPOTrainer(BaseRLTrainer):
             if total_num_eps < number_of_eval_episodes and total_num_eps > 1:
                 logger.warn(
                     f"Config specified {number_of_eval_episodes} eval episodes"
-                    ", dataset only has {total_num_eps}."
+                    f", dataset only has {total_num_eps}."
                 )
                 logger.warn(f"Evaluating with {total_num_eps} instead.")
                 number_of_eval_episodes = total_num_eps
@@ -1132,7 +1152,9 @@ class PPOTrainer(BaseRLTrainer):
                         frame = observations_to_image(
                             {k: v[i] * 0.0 for k, v in batch.items()}, infos[i]
                         )
-                    frame = overlay_frame(frame, self._extract_scalars_from_info(infos[i]))
+                    frame = overlay_frame(
+                        frame, self._extract_scalars_from_info(infos[i])
+                    )
                     rgb_frames[i].append(frame)
 
                 # episode ended
@@ -1150,6 +1172,33 @@ class PPOTrainer(BaseRLTrainer):
                         current_episodes_info[i].episode_id,
                     )
                     ep_eval_count[k] += 1
+
+                    if config.habitat.task.type == "ObjectNav-v1":
+                        if "objectgoal" in batch.keys():
+                            # keep track of all metrics for each goal object category
+                            goal_category_id = batch["objectgoal"][i].item()
+                            episode_stats["object_category"] = goal_category_id
+
+                            if (
+                                goal_category_id
+                                not in per_category_eval_stats.keys()
+                            ):
+                                per_category_eval_stats[goal_category_id] = {}
+                                for metric_k, metric_v in infos[i].items():
+                                    per_category_eval_stats[goal_category_id][
+                                        metric_k
+                                    ] = np.array([metric_v])
+                            else:
+                                for metric_k, metric_v in infos[i].items():
+                                    per_category_eval_stats[goal_category_id][
+                                        metric_k
+                                    ] = np.append(
+                                        per_category_eval_stats[
+                                            goal_category_id
+                                        ][metric_k],
+                                        metric_v,
+                                    )
+
                     # use scene_id + episode_id as unique id for storing stats
                     stats_episodes[(k, ep_eval_count[k])] = episode_stats
 
@@ -1167,7 +1216,7 @@ class PPOTrainer(BaseRLTrainer):
                             fps=self.config.habitat_baselines.video_fps,
                             tb_writer=writer,
                             keys_to_include_in_name=self.config.habitat_baselines.eval_keys_to_include_in_name,
-                            episode_metadata=current_episodes_info[i]
+                            episode_metadata=current_episodes_info[i],
                         )
 
                         rgb_frames[i] = []
@@ -1211,6 +1260,43 @@ class PPOTrainer(BaseRLTrainer):
                 [v[stat_key] for v in stats_episodes.values()]
             )
 
+        stats_episodes_dir_path = os.path.dirname(
+            self.config.habitat_baselines.checkpoint_folder
+        )
+        stats_episodes_dir_path = os.path.join(
+            stats_episodes_dir_path,
+            f"eval_results_{config.habitat_baselines.eval.split}",
+        )
+        os.makedirs(stats_episodes_dir_path, exist_ok=True)
+        stats_episodes_path = os.path.join(
+            stats_episodes_dir_path,
+            f"ckpt_{checkpoint_index}_episode_stats.tsv",
+        )
+
+        scenes = list(set([x[0][0] for x in stats_episodes.keys()]))
+
+        episode_stats_dict = {}
+
+        for scene in tqdm.tqdm(scenes):
+            scene_id = scene.split("/")[-1].split(".")[0]
+            episode_ids = [
+                x[0][1] for x in stats_episodes.keys() if x[0][0] == scene
+            ]
+
+            if scene_id not in episode_stats_dict.keys():
+                episode_stats_dict[scene_id] = {}
+
+            for ep_id in episode_ids:
+                key = [
+                    x for x in stats_episodes.keys() if x[0] == (scene, ep_id)
+                ][0]
+
+                assert ep_id not in episode_stats_dict[scene_id].keys()
+                episode_stats_dict[scene_id][ep_id] = stats_episodes[key]
+
+        df = convert_episode_stats_dict_to_df(episode_stats_dict)
+        df.to_csv(stats_episodes_path, sep="\t", index=None)
+
         for k, v in aggregated_stats.items():
             logger.info(f"Average episode {k}: {v:.4f}")
 
@@ -1225,5 +1311,89 @@ class PPOTrainer(BaseRLTrainer):
         metrics = {k: v for k, v in aggregated_stats.items() if k != "reward"}
         for k, v in metrics.items():
             writer.add_scalar(f"eval_metrics/{k}", v, step_id)
+
+        metrics = {k: v for k, v in aggregated_stats.items() if k != "reward"}
+        for k, v in metrics.items():
+            writer.add_scalar(f"eval_metrics/{k}", v, step_id)
+
+        if config.habitat.task.type == "ObjectNav-v1":
+            if len(per_category_eval_stats) != 0:
+                per_category_eval_stats_metrics = list(
+                    next(iter(per_category_eval_stats.values())).keys()
+                )
+                df = pd.DataFrame()
+                df["category_id"] = per_category_eval_stats.keys()
+                df["category"] = [
+                    self.id_to_category[c]
+                    for c in per_category_eval_stats.keys()
+                ]
+                for k in per_category_eval_stats_metrics:
+                    df[k] = [
+                        v[k].mean() for v in per_category_eval_stats.values()
+                    ]
+                df = df.sort_values("category_id")
+                df = df.set_index("category_id")
+
+                for metric in df.keys():
+                    if metric in ["category"]:
+                        continue
+                    for cat in df.category.to_list():
+                        value = df[df["category"] == cat][metric].item()
+                        writer.add_scalar(
+                            f"eval_metrics_{cat}/{metric}", value, step_id
+                        )
+
+                eval_results_dir = os.path.dirname(
+                    self.config.habitat_baselines.checkpoint_folder
+                )
+                eval_results_dir = os.path.join(
+                    eval_results_dir,
+                    f"eval_results_{config.habitat_baselines.eval.split}",
+                )
+                eval_results_plots_dir = os.path.join(
+                    eval_results_dir, "plots"
+                )
+                os.makedirs(eval_results_plots_dir, exist_ok=True)
+
+                eval_results_path = os.path.join(
+                    eval_results_dir, f"ckpt_{checkpoint_index}.csv"
+                )
+
+                df.to_csv(eval_results_path, sep="\t")
+
+                for metric in df.keys():
+                    if metric in ["category", "category_id"]:
+                        continue
+                    eval_results_plot_path = os.path.join(
+                        eval_results_plots_dir,
+                        f"ckpt_{checkpoint_index}_{metric}",
+                    )
+                    eval_results_plot_path = eval_results_plot_path + "{}.png"
+
+                    for sort in [True, False]:
+                        if sort:
+                            df_viz = df.sort_values(by=metric)
+                        else:
+                            df_viz = df
+
+                        plt.figure(figsize=(22, 8))
+                        sns.barplot(data=df_viz, x="category", y=metric)
+                        plt.xticks(rotation=30)
+                        plt.xlabel("")
+                        plt.ylabel(metric, fontsize=18)
+                        plt.savefig(
+                            eval_results_plot_path.format(
+                                "_sorted" if sort else ""
+                            ),
+                            dpi=300,
+                        )
+
+        print("-" * 40)
+        for metric in df.keys():
+            if metric == "category":
+                continue
+            value = df[metric].mean()
+            logger.info(f"Macro average {metric}: {value:.4f}")
+            writer.add_scalar(f"eval_metrics_macro/{metric}", value, step_id)
 
         self.envs.close()
