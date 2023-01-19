@@ -8,13 +8,14 @@ from data.scripts.floorplanner.utils.utils import get_topdown_map
 from habitat.config import read_write
 from habitat.utils.visualizations import maps
 
-scenes_path = (
-    "data/scene_datasets/floorplanner/v1/assets/compressed-glb-arch-only"
-)
+version_id = "v0.2.0"
+scenes_path = f"data/scene_datasets/floorplanner/{version_id}/assets/compressed-glb-arch-only"
 task_config_path = (
     "habitat-lab/habitat/config/benchmark/nav/objectnav/objectnav_fp.yaml"
 )
-topdown_map_out_path = "data/scene_datasets/floorplanner/v1/viz/topdown_maps"
+topdown_map_out_path = (
+    f"data/scene_datasets/floorplanner/{version_id}/viz/topdown_maps"
+)
 os.makedirs(topdown_map_out_path, exist_ok=True)
 
 NUM_TRIES = 10
@@ -38,7 +39,7 @@ def save_topdown_maps(scenes):
         max_nav_area = 0
 
         # getting the topdown map with the most nav area visible
-        for i in tqdm(range(NUM_TRIES)):
+        for i in tqdm(range(NUM_TRIES), desc=scene):
             pos = sim.pathfinder.get_random_navigable_point()
 
             nav_area = maps.get_topdown_map(
@@ -57,5 +58,5 @@ def save_topdown_maps(scenes):
 
 
 if __name__ == "__main__":
-    scenes = [x.split(".")[0] for x in os.listdir(scenes_path)]
+    scenes = sorted([x.split(".")[0] for x in os.listdir(scenes_path)])
     save_topdown_maps(scenes)
