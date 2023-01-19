@@ -33,72 +33,75 @@ from data.scripts.floorplanner.utils.utils import (
     COLOR_PALETTE,
     get_topdown_map,
 )
-from habitat.config.default import get_config
 from habitat.config import read_write
+from habitat.config.default import get_config
 from habitat.datasets.object_nav import object_nav_dataset
 from habitat.datasets.pointnav.pointnav_generator import ISLAND_RADIUS_LIMIT
 from habitat.tasks.rearrange.utils import get_aabb
-
-font = {"size": 22}
-matplotlib.rc("font", **font)
 
 os.environ["MAGNUM_LOG"] = "quiet"
 os.environ["HABITAT_SIM_LOG"] = "quiet"
 os.environ["GLOG_minloglevel"] = "2"
 
-SCENES_ROOT = "data/scene_datasets/floorplanner/v1"
-GOAL_CATEGORIES_PATH = (
-    "data/scene_datasets/floorplanner/v1/goal_categories.yaml"
-)
-GOAL_6_CATEGORIES_PATH = (
-    "data/scene_datasets/floorplanner/v1/goal_categories_6.yaml"
-)
-SCENE_SPLITS_PATH = os.path.join(SCENES_ROOT, "scene_splits.yaml")
-
 COMPRESSION = ".gz"
-VERSION_ID = "v0.1.1"
+SCENE_DATASET_VERSION_ID = "v0.2.0"
+EPISODE_DATASET_VERSION_ID = "v0.2.0_33_cat"
 OBJECT_ON_SAME_FLOOR = True  # [UPDATED]
 NUM_EPISODES = 50000
 MIN_OBJECT_DISTANCE = 1.0
 MAX_OBJECT_DISTANCE = 30.0
+GOAL_CATEGORIES_FILENAME = "33_goal_categories.yaml"
 
-with open(SCENE_SPLITS_PATH, "r") as f:
-    FP_SCENE_SPLITS = yaml.safe_load(f)
-
-OUTPUT_DATASET_FOLDER = f"data/datasets/objectnav/floorplanner/{VERSION_ID}"
-EPISODES_DATASET_VIZ_FOLDER = os.path.join(
-    OUTPUT_DATASET_FOLDER, "viz", "episodes"
-)
-GOALS_DATASET_VIZ_FOLDER = os.path.join(
-    OUTPUT_DATASET_FOLDER, "viz", "goal_distances"
-)
-FAILURE_VIZ_FOLDER = os.path.join(
-    OUTPUT_DATASET_FOLDER, "viz", "failure_cases"
-)
 NUM_GPUS = len(GPUtil.getAvailable(limit=256))
 TASKS_PER_GPU = 20
 deviceIds = GPUtil.getAvailable(order="memory")
 
-with open(GOAL_CATEGORIES_PATH, "r") as f:
+scenes_root_path = (
+    f"data/scene_datasets/floorplanner/{SCENE_DATASET_VERSION_ID}"
+)
+goal_categories_path = os.path.join(
+    "data/scene_datasets/floorplanner/goals/", GOAL_CATEGORIES_FILENAME
+)
+semantic_id_mapping_path = os.path.join(
+    scenes_root_path, "configs", "semantics", "object_semantic_id_mapping.json"
+)
+scene_splits_path = os.path.join(
+    scenes_root_path, "configs", "scene_splits.yaml"
+)
+
+with open(scene_splits_path, "r") as f:
+    scene_splits = yaml.safe_load(f)
+
+output_dataset_folder = (
+    f"data/datasets/objectnav/floorplanner/{EPISODE_DATASET_VERSION_ID}"
+)
+episode_dataset_viz_folder = os.path.join(
+    output_dataset_folder, "viz", "episodes"
+)
+goal_distances_viz_folder = os.path.join(
+    output_dataset_folder, "viz", "goal_distances"
+)
+failure_viz_folder = os.path.join(
+    output_dataset_folder, "viz", "failure_cases"
+)
+
+with open(goal_categories_path, "r") as f:
     goal_categories = yaml.safe_load(f)
 
-with open(GOAL_6_CATEGORIES_PATH, "r") as f:
-    goal_6_categories = yaml.safe_load(f)
-
-category_to_scene_annotation_category_id = {}
-for cat in goal_categories:
-    # if cat in goal_6_categories:
-    category_to_scene_annotation_category_id[cat] = goal_categories.index(cat)
+with open(semantic_id_mapping_path, "r") as f:
+    semantic_id_mapping = json.load(f)
 
 
 def get_objnav_config(i, scene):
 
-    TASK_CFG = "habitat-lab/habitat/config/benchmark/nav/objectnav/objectnav_fp.yaml"
+    TASK_CFG = (
+        "habitat-lab/habitat/config/benchmark/nav/objectnav/objectnav_fp.yaml"
+    )
     SCENE_DATASET_CFG = os.path.join(
-        SCENES_ROOT, "hab-fp.scene_dataset_config.json"
+        scenes_root_path, "hab-fp.scene_dataset_config.json"
     )
 
-    objnav_config = get_config(TASK_CFG)#.clone()
+    objnav_config = get_config(TASK_CFG)  # .clone()
 
     deviceIds = GPUtil.getAvailable(
         order="memory", limit=1, maxLoad=1.0, maxMemory=1.0
@@ -110,18 +113,29 @@ def get_objnav_config(i, scene):
 
     with read_write(objnav_config):
 
-        # TODO: find a better way to do it.
-        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.semantic_sensor = objnav_config.habitat.simulator.agents.main_agent.sim_sensors.rgb_sensor
-        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.semantic_sensor.type = "HabitatSimSemanticSensor"
         FOV = 90
-        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.rgb_sensor.hfov = FOV
-        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.depth_sensor.hfov = FOV
-        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.semantic_sensor.hfov = FOV
+        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.rgb_sensor.hfov = (
+            FOV
+        )
+        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.depth_sensor.hfov = (
+            FOV
+        )
+        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.semantic_sensor.hfov = (
+            FOV
+        )
         # TODO: confirm the width and height
-        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.semantic_sensor.width = 320
-        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.semantic_sensor.height = 240
-        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.rgb_sensor.width = 320
-        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.rgb_sensor.height = 240
+        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.semantic_sensor.width = (
+            320
+        )
+        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.semantic_sensor.height = (
+            240
+        )
+        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.rgb_sensor.width = (
+            320
+        )
+        objnav_config.habitat.simulator.agents.main_agent.sim_sensors.rgb_sensor.height = (
+            240
+        )
 
         objnav_config.habitat.simulator.habitat_sim_v0.gpu_device_id = deviceId
         objnav_config.habitat.simulator.scene = scene
@@ -134,12 +148,18 @@ def get_objnav_config(i, scene):
 
 
 def get_simulator(objnav_config):
-    sim = habitat.sims.make_sim("Sim-v0", config=objnav_config.habitat.simulator)
+    sim = habitat.sims.make_sim(
+        "Sim-v0", config=objnav_config.habitat.simulator
+    )
 
     navmesh_settings = habitat_sim.NavMeshSettings()
     navmesh_settings.set_defaults()
-    navmesh_settings.agent_radius = objnav_config.habitat.simulator.agents.main_agent.radius
-    navmesh_settings.agent_height = objnav_config.habitat.simulator.agents.main_agent.height
+    navmesh_settings.agent_radius = (
+        objnav_config.habitat.simulator.agents.main_agent.radius
+    )
+    navmesh_settings.agent_height = (
+        objnav_config.habitat.simulator.agents.main_agent.height
+    )
     sim.recompute_navmesh(
         sim.pathfinder, navmesh_settings, include_static_objects=True
     )
@@ -226,13 +246,19 @@ def generate_scene(args):
     ):
         source_obj = rgm.get_object_by_id(obj_id)
         semantic_id = source_obj.semantic_id
-        # replacing semantic id with object id to fetch instance maps
+
+        category_name = None
+        for cat, cat_id in semantic_id_mapping.items():
+            if cat_id == semantic_id:
+                category_name = cat
+                break
+
+        # CRUCIAL: replacing semantic id with object id to fetch instance maps
         for node in source_obj.visual_scene_nodes:
             node.semantic_id = obj_id
 
         if (
-            semantic_id
-            not in category_to_scene_annotation_category_id.values()
+            category_name is None or category_name not in goal_categories
         ):  # non-goal category
             continue
 
@@ -253,22 +279,16 @@ def generate_scene(args):
             "obb": obb,
             "aabb": aabb,
             "category_id": semantic_id,
-            "category_name": list(
-                category_to_scene_annotation_category_id.keys()
-            )[
-                list(category_to_scene_annotation_category_id.values()).index(
-                    semantic_id
-                )
-            ],
+            "category_name": category_name,
         }
         objects.append(obj)
 
     print("Scene loaded.")
     fname_obj = (
-        f"{OUTPUT_DATASET_FOLDER}/{split}/scene_goals/{scene}_goal_objs.pkl"
+        f"{output_dataset_folder}/{split}/scene_goals/{scene}_goal_objs.pkl"
     )
     fname = (
-        f"{OUTPUT_DATASET_FOLDER}/{split}/content/{scene}.json{COMPRESSION}"
+        f"{output_dataset_folder}/{split}/content/{scene}.json{COMPRESSION}"
     )
 
     ############################################################################
@@ -285,7 +305,9 @@ def generate_scene(args):
     else:
         # goals_by_category = defaultdict(list)
         goals_by_category = {}
-        cell_size = objnav_config.habitat.simulator.agents.main_agent.radius / 2.0
+        cell_size = (
+            objnav_config.habitat.simulator.agents.main_agent.radius / 2.0
+        )
         categories_to_counts = {}
 
         for obj in tqdm.tqdm(objects, desc="Objects for %s:" % scene):
@@ -312,10 +334,10 @@ def generate_scene(args):
 
             if goal == None:
                 os.makedirs(
-                    os.path.join(FAILURE_VIZ_FOLDER, scene), exist_ok=True
+                    os.path.join(failure_viz_folder, scene), exist_ok=True
                 )
                 fail_case_path = os.path.join(
-                    FAILURE_VIZ_FOLDER,
+                    failure_viz_folder,
                     scene,
                     f'{obj["category_name"]}_{obj["object_name"]}.jpg',
                 )
@@ -355,7 +377,7 @@ def generate_scene(args):
     ############################################################################
 
     obj_save_path = os.path.join(
-        OUTPUT_DATASET_FOLDER, split, "scene_goals", f"{scene}_clusters.pkl"
+        output_dataset_folder, split, "scene_goals", f"{scene}_clusters.pkl"
     )
     if os.path.isfile(obj_save_path):
         with open(obj_save_path, "rb") as fp:
@@ -432,12 +454,8 @@ def generate_scene(args):
     total_valid_cats = len(total_objects_by_cat)
     dset = habitat.datasets.make_dataset("ObjectNav-v1")
 
-    dset.category_to_task_category_id = (
-        category_to_scene_annotation_category_id
-    )
-    dset.category_to_scene_annotation_category_id = (
-        category_to_scene_annotation_category_id
-    )
+    dset.category_to_task_category_id = semantic_id_mapping
+    dset.category_to_scene_annotation_category_id = semantic_id_mapping
     dset_goals_by_category = {
         k: {"goals": v["goals"]} for k, v in goals_by_category.items()
     }
@@ -510,7 +528,7 @@ def generate_scene(args):
                 obj_name = obj.object_name
                 obj_cat = obj.object_category
                 episodes_viz_output_path = os.path.join(
-                    EPISODES_DATASET_VIZ_FOLDER, scene
+                    episode_dataset_viz_folder, scene
                 )
                 os.makedirs(episodes_viz_output_path, exist_ok=True)
                 episode_viz_output_filename = os.path.join(
@@ -520,7 +538,7 @@ def generate_scene(args):
                 cv2.imwrite(episode_viz_output_filename, tdm[:, :, ::-1])
 
                 goal_distances_viz_output_path = os.path.join(
-                    GOALS_DATASET_VIZ_FOLDER, scene
+                    goal_distances_viz_folder, scene
                 )
                 os.makedirs(goal_distances_viz_output_path, exist_ok=True)
                 goal_viz_output_filename = os.path.join(
@@ -551,7 +569,7 @@ def read_dset(json_fname):
 
 
 def prepare_inputs(split):
-    scenes = FP_SCENE_SPLITS[split]
+    scenes = scene_splits[split]
     return [(i, scene, split) for i, scene in enumerate(scenes)]
 
 
@@ -590,7 +608,7 @@ if __name__ == "__main__":
     #     subtotals.append(subtotal_by_cat)
 
     # Generate episodes for all scenes
-    os.makedirs(OUTPUT_DATASET_FOLDER, exist_ok=True)
+    os.makedirs(output_dataset_folder, exist_ok=True)
 
     # Create split outer files
     if args.split == "*":
@@ -599,21 +617,17 @@ if __name__ == "__main__":
         splits = [args.split]
     for split in splits:
         dset = habitat.datasets.make_dataset("ObjectNav-v1")
-        dset.category_to_task_category_id = (
-            category_to_scene_annotation_category_id
-        )
-        dset.category_to_scene_annotation_category_id = (
-            category_to_scene_annotation_category_id
-        )
+        dset.category_to_task_category_id = semantic_id_mapping
+        dset.category_to_scene_annotation_category_id = semantic_id_mapping
         global_dset = (
-            f"{OUTPUT_DATASET_FOLDER}/{split}/{split}.json{COMPRESSION}"
+            f"{output_dataset_folder}/{split}/{split}.json{COMPRESSION}"
         )
         if os.path.exists(global_dset):
             os.remove(global_dset)
         if not os.path.exists(os.path.dirname(global_dset)):
             os.mkdir(os.path.dirname(global_dset))
         jsons_gz = glob.glob(
-            f"{OUTPUT_DATASET_FOLDER}/{split}/content/*.json{COMPRESSION}"
+            f"{output_dataset_folder}/{split}/content/*.json{COMPRESSION}"
         )
 
         save_dataset(dset, global_dset)
@@ -621,7 +635,7 @@ if __name__ == "__main__":
     with mp_ctx.Pool(GPU_THREADS, maxtasksperchild=2) as pool, tqdm.tqdm(
         total=len(inputs)
     ) as pbar, open(
-        os.path.join(OUTPUT_DATASET_FOLDER, "train_subtotals.json"), "w"
+        os.path.join(output_dataset_folder, "train_subtotals.json"), "w"
     ) as f:
         total_all = 0
         subtotals = []
