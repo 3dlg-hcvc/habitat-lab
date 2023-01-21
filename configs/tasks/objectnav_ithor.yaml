@@ -45,5 +45,5 @@ TASK:
 DATASET:
   TYPE: ObjectNav-v1
   SPLIT: train
-  SCENES_DIR: data/scene_datasets/ai2thor-hab/v0.0.5/configs/scenes
-  DATA_PATH: data/datasets/objectnav/ithor/v0.0.5/{split}/{split}.json.gz
+  SCENES_DIR: data/scene_datasets/ai2thor-hab/v0.0.6/configs/scenes
+  DATA_PATH: data/datasets/objectnav/ithor/v0.0.6/{split}/{split}.json.gz
