@@ -18,6 +18,7 @@ COLOR_PALETTE = {
     "black": (0, 0, 0),
     "white": (255, 255, 255),
     "pink": (255, 0, 127),
+    "dark_green": (12, 114, 19)
 }
 
 

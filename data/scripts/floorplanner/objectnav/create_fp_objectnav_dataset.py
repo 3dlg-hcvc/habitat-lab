@@ -45,12 +45,12 @@ os.environ["GLOG_minloglevel"] = "2"
 
 COMPRESSION = ".gz"
 SCENE_DATASET_VERSION_ID = "v0.2.0"
-EPISODE_DATASET_VERSION_ID = "v0.2.0_33_cat"
+EPISODE_DATASET_VERSION_ID = "v0.2.0_6_cat_indoor_only"
+GOAL_CATEGORIES_FILENAME = "6_goal_categories.yaml"
 OBJECT_ON_SAME_FLOOR = True  # [UPDATED]
 NUM_EPISODES = 50000
 MIN_OBJECT_DISTANCE = 1.0
 MAX_OBJECT_DISTANCE = 30.0
-GOAL_CATEGORIES_FILENAME = "33_goal_categories.yaml"
 
 NUM_GPUS = len(GPUtil.getAvailable(limit=256))
 TASKS_PER_GPU = 20
@@ -106,6 +106,7 @@ def get_objnav_config(i, scene):
     deviceIds = GPUtil.getAvailable(
         order="memory", limit=1, maxLoad=1.0, maxMemory=1.0
     )
+
     if i < NUM_GPUS * TASKS_PER_GPU or len(deviceIds) == 0:
         deviceId = i % NUM_GPUS
     else:
@@ -151,20 +152,12 @@ def get_simulator(objnav_config):
     sim = habitat.sims.make_sim(
         "Sim-v0", config=objnav_config.habitat.simulator
     )
-
-    navmesh_settings = habitat_sim.NavMeshSettings()
-    navmesh_settings.set_defaults()
-    navmesh_settings.agent_radius = (
-        objnav_config.habitat.simulator.agents.main_agent.radius
-    )
-    navmesh_settings.agent_height = (
-        objnav_config.habitat.simulator.agents.main_agent.height
-    )
-    sim.recompute_navmesh(
-        sim.pathfinder, navmesh_settings, include_static_objects=True
-    )
-
-    return sim
+    # no need to recompute navmesh because forked hab-sim installation includes static objs by default
+    sim.compute_navmesh_island_classifications()
+    for island_idx in sim.indoor_islands:
+        if sim.pathfinder.island_area(island_idx) > ISLAND_RADIUS_LIMIT:
+            return sim
+    return None  # scene has no valid indoor islands
 
 
 def dense_sampling_trimesh(triangles, density=25.0, max_points=200000):
@@ -225,14 +218,19 @@ def generate_scene(args):
     objnav_config = get_objnav_config(i, scene)
 
     sim = get_simulator(objnav_config)
+
+    if sim is None:
+        print(f"Scene {scene} has no valid indoor islands.")
+        return scene, 0, defaultdict(list), None, 0
+
     total_objects = sim.get_rigid_object_manager().get_num_objects()
 
     # Check there exists a navigable point
     test_point = sim.sample_navigable_point()
     if total_objects == 0 or not sim.is_navigable(np.array(test_point)):
-        print("Scene has no objects / is not navigable: %s" % scene)
+        print(f"Scene {scene} has no objects / is not navigable: %s" % scene)
         sim.close()
-        return scene, total_objects, defaultdict(list), None
+        return scene, total_objects, defaultdict(list), None, 0
 
     objects = []
 
@@ -311,7 +309,7 @@ def generate_scene(args):
         categories_to_counts = {}
 
         for obj in tqdm.tqdm(objects, desc="Objects for %s:" % scene):
-            print(f'Object id: {obj["id"]}, ({obj["category_name"]})')
+            # print(f'Object id: {obj["id"]}, ({obj["category_name"]})')
             if obj["category_name"] not in categories_to_counts:
                 categories_to_counts[obj["category_name"]] = [0, 0]
             categories_to_counts[obj["category_name"]][1] += 1
@@ -403,6 +401,8 @@ def generate_scene(args):
             if sim.pathfinder.is_navigable(center):
                 if sim.island_radius(center) < ISLAND_RADIUS_LIMIT:
                     continue
+                if sim.pathfinder.get_island(center) not in sim.indoor_islands:
+                    continue
                 center = np.array(sim.pathfinder.snap_point(center)).tolist()
                 locs = navmesh_pc[labels == i, :].tolist()
                 stddev = np.linalg.norm(np.std(locs, axis=0)).item()
@@ -449,7 +449,7 @@ def generate_scene(args):
     if os.path.exists(fname):
         print("Scene already generated. Skipping")
         sim.close(destroy=True)
-        return scene, total_objects, total_objects_by_cat, None
+        return scene, total_objects, total_objects_by_cat, None, None
 
     total_valid_cats = len(total_objects_by_cat)
     dset = habitat.datasets.make_dataset("ObjectNav-v1")
@@ -459,6 +459,9 @@ def generate_scene(args):
     dset_goals_by_category = {
         k: {"goals": v["goals"]} for k, v in goals_by_category.items()
     }
+    # dset_goals_by_category = {
+    #     k: {v["goals"]} for k, v in goals_by_category.items()
+    # }
     dset.goals_by_category = dset_goals_by_category
     scene_dataset_config = objnav_config.habitat.simulator.scene_dataset
 
@@ -556,7 +559,13 @@ def generate_scene(args):
     os.makedirs(osp.dirname(fname), exist_ok=True)
     save_dataset(dset, fname)
     sim.close(destroy=True)
-    return scene, total_objects, total_objects_by_cat, fname
+    return (
+        scene,
+        total_objects,
+        total_objects_by_cat,
+        fname,
+        len(dset.episodes),
+    )
 
 
 def read_dset(json_fname):
@@ -601,7 +610,7 @@ if __name__ == "__main__":
     # total_all = 0
     # subtotals = []
     # for inp in tqdm.tqdm(inputs):
-    #     if inp[1] != '102343992':
+    #     if inp[1] != '102344022':
     #         continue
     #     scene, subtotal, subtotal_by_cat, fname = generate_scene(inp)
     #     total_all += subtotal
@@ -609,6 +618,7 @@ if __name__ == "__main__":
 
     # Generate episodes for all scenes
     os.makedirs(output_dataset_folder, exist_ok=True)
+    no_episode_scenes = []
 
     # Create split outer files
     if args.split == "*":
@@ -639,12 +649,19 @@ if __name__ == "__main__":
     ) as f:
         total_all = 0
         subtotals = []
-        for scene, subtotal, subtotal_by_cat, fname in pool.imap_unordered(
-            generate_scene, inputs
-        ):
+        for (
+            scene,
+            subtotal,
+            subtotal_by_cat,
+            fname,
+            num_episodes,
+        ) in pool.imap_unordered(generate_scene, inputs):
             pbar.update()
             total_all += subtotal
             subtotals.append(subtotal_by_cat)
+            if num_episodes == 0:
+                no_episode_scenes.append(scene)
+            print("Scene with no episodes:", no_episode_scenes)
         print(total_all)
         print(subtotals)
 

@@ -6,6 +6,7 @@
 
 import itertools
 import os
+import random
 from typing import List
 
 import cv2
@@ -303,6 +304,15 @@ def build_goal(
                 "on_island_after_snapping",
             )
 
+        # snapped point outdoors
+        if sim.pathfinder.get_island(pt) not in sim.indoor_islands:
+            return (
+                -1,
+                pt,
+                None,
+                "outdoor_viewpoint",
+            )
+
         goal_direction = object_position - pt
 
         goal_direction[1] = 0
@@ -383,8 +393,9 @@ def build_goal(
         n_too_far_rejected,
         n_down_unnavigable_rejected,
         n_island_candidates_rejected,
+        n_outdoor_rejected,
         n_low_visibility,
-    ) = (0, 0, 0, 0)
+    ) = (0, 0, 0, 0, 0)
 
     candidate_poses_ious = []
 
@@ -395,6 +406,8 @@ def build_goal(
             n_down_unnavigable_rejected += 1
         elif p[-1] == "on_island_after_snapping":
             n_island_candidates_rejected += 1
+        elif p[-1] == "outdoor_viewpoint":
+            n_outdoor_rejected += 1
         elif p[-1] == "low_visibility":
             n_low_visibility += 1
         elif p[0] > 0:
@@ -406,6 +419,7 @@ def build_goal(
         f"[{n_too_far_rejected}/{n_orig_poses}] rejected due to being too far.",
         f"[{n_down_unnavigable_rejected}/{n_orig_poses}] rejected because the surface below is unnavigable.",
         f"[{n_low_visibility}/{n_orig_poses}] rejected due to insufficient visibility.",
+        f"[{n_outdoor_rejected}/{n_orig_poses}] rejected due to being outdoors.",
     ]
 
     # [DEBUG]: visualize views from rejected viewpoints
@@ -449,6 +463,8 @@ def build_goal(
             color = COLOR_PALETTE["black"]
         elif p[-1] == "low_visibility":
             color = COLOR_PALETTE["pink"]
+        elif p[-1] == "outdoor_rejected":
+            color = COLOR_PALETTE["dark_green"]
         elif p[0] > 0:  # valid view points
             color = COLOR_PALETTE["green"]
 
@@ -477,7 +493,7 @@ def build_goal(
         topdown_map = cv2.copyMakeBorder(
             topdown_map,
             0,
-            125,
+            150,
             0,
             0,
             cv2.BORDER_CONSTANT,
@@ -493,6 +509,8 @@ def build_goal(
                 color = COLOR_PALETTE["red"]
             elif "island" in line:
                 color = COLOR_PALETTE["black"]
+            elif "outdoor" in line:
+                color = COLOR_PALETTE["dark_green"]
 
             topdown_map = cv2.putText(
                 topdown_map,
@@ -823,6 +841,8 @@ def generate_objectnav_episode_v2(
                     source_position is None
                     or np.any(np.isnan(source_position))
                     or not sim.is_navigable(source_position)
+                    or sim.pathfinder.get_island(source_position)
+                    not in sim.indoor_islands
                 ):
                     print(f"Skipping cluster {cluster_center}")
                     num_cluster_episodes = 0
