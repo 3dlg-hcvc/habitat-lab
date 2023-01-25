@@ -2,7 +2,7 @@
 
 defaults:
   - /habitat_baselines: habitat_baselines_rl_config_base
-  - /benchmark/nav/objectnav: objectnav_mp3d
+  - /benchmark/nav/objectnav: objectnav_fp
   - _self_
 
 habitat:
@@ -15,16 +15,16 @@ habitat:
 
 habitat_baselines:
   torch_gpu_id: 0
-  tensorboard_dir: "tb"
-  video_dir: "video_dir"
+  tensorboard_dir: "data/training/floorplanner/ddppo/v0.2.0_33_cat_indoor_only/tb"
+  video_dir: "data/training/floorplanner/ddppo/v0.2.0_33_cat_indoor_only/video_dir"
   test_episode_count: -1
-  eval_ckpt_path_dir: "data/new_checkpoints"
-  num_environments: 4
-  checkpoint_folder: "data/new_checkpoints"
+  eval_ckpt_path_dir: "data/training/floorplanner/ddppo/v0.2.0_33_cat_indoor_only/checkpoints"
+  num_environments: 54
+  checkpoint_folder: "data/training/floorplanner/ddppo/v0.2.0_33_cat_indoor_only/checkpoints"
   trainer_name: "ddppo"
   num_updates: 270000
   log_interval: 10
-  num_checkpoints: 100
+  num_checkpoints: 200
   # Force PyTorch to be single threaded as
   # this improves performance considerably
   force_torch_single_threaded: True
@@ -41,7 +41,7 @@ habitat_baselines:
       # ppo params
       clip_param: 0.2
       ppo_epoch: 4
-      num_mini_batch: 2
+      num_mini_batch: 1
       value_loss_coef: 0.5
       entropy_coef: 0.01
       lr: 2.5e-4

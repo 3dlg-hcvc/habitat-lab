@@ -12,16 +12,16 @@ habitat:
     slack_reward: -1e-3
 habitat_baselines:
   torch_gpu_id: 0
-  tensorboard_dir: "data/training/fp/v0.1.1/tb"
-  video_dir: "data/training/fp/v0.1.1/video_dir"
+  tensorboard_dir: "data/training/floorplanner/ver/v0.2.0_33_cat_indoor_only/tb"
+  video_dir: "data/training/floorplanner/ver/v0.2.0_33_cat_indoor_only/video_dir"
   test_episode_count: -1
-  eval_ckpt_path_dir: "data/training/fp/v0.1.1/checkpoints/latest.pth"
-  num_environments: 48
-  checkpoint_folder: "data/training/fp/v0.1.1/checkpoints"
+  eval_ckpt_path_dir: "data/training/floorplanner/ver/v0.2.0_33_cat_indoor_only/checkpoints/"
+  num_environments: 20
+  checkpoint_folder: "data/training/floorplanner/ver/v0.2.0_33_cat_indoor_only/checkpoints"
   trainer_name: "ver"
   num_updates: 270000
   log_interval: 10
-  num_checkpoints: 100
+  num_checkpoints: 200
   # Force PyTorch to be single threaded as
   # this improves performance considerably
   force_torch_single_threaded: True
