@@ -18,6 +18,7 @@ import gzip
 import json
 import os
 import pickle
+import yaml
 
 import cv2
 import tqdm
@@ -43,6 +44,7 @@ os.environ["HABITAT_SIM_LOG"] = "quiet"
 os.environ["GLOG_minloglevel"] = "2"
 
 SCENES_ROOT = "data/scene_datasets/floorplanner/v1"
+CATEGORY_ROOT = "data/scene_datasets/floorplanner/goals/33_goal_categories.yaml"
 
 COLOR_MAP = sns.color_palette("Blues", as_cmap=True) 
 
@@ -254,27 +256,50 @@ def visualize_all_start_end_points(episodes, scene, category, sim, out_path):
     episode_viz_output_filename = os.path.join(out_path, f"{scene}_{category}.jpg")
     cv2.imwrite(episode_viz_output_filename, topdown_map[:, :, ::-1])
 
-def main(args):
+def visualize_scene(scene, category, viz_fn, out_path):
 
-    scene_path = os.path.join(args.in_path, f'{args.scene}.json.gz')
+    scene_path = os.path.join(args.in_path, f'{scene}.json.gz')
 
     with gzip.open(scene_path, 'rt') as fp:
         episodes = json.load(fp)
 
-    scene = args.scene
-    category = args.category
-
     objnav_config = get_objnav_config(scene)
     sim = get_simulator(objnav_config)
 
+    if f'{scene}_{category}' in episodes['goals_by_category']:
+        viz_fn(episodes, scene, category, sim, out_path)
+
+def get_categories():
+
+    with open(CATEGORY_ROOT, 'r') as fp:
+        cats = yaml.safe_load(fp)
+    
+    return cats
+
+def main(args):
+
     if args.per_episode:
-        visualize_per_episode(episodes, scene, category, sim, args.out_path)
+        viz_fn = visualize_per_episode
     elif args.only_start:
-        visualize_all_start_points(episodes, scene, category, sim, args.out_path)
+        viz_fn = visualize_all_start_points
     elif args.cc_instance:
-        visualize_all_start_end_points_cc_instance(episodes, scene, category, sim, args.out_path)
+        viz_fn = visualize_all_start_end_points_cc_instance
     else:
-        visualize_all_start_end_points(episodes, scene, category, sim, args.out_path)
+        viz_fn = visualize_all_start_end_points
+
+    if args.scene == 'all':
+        scenes = sorted([x.replace('.json.gz', '') for x in os.listdir(args.in_path)])
+    else:
+        scenes = [args.scene]
+
+    if args.category == 'all':
+        categories = get_categories()
+    else:
+        categories = [args.category]
+
+    for scene in tqdm.tqdm(scenes):
+        for cat in categories:
+            visualize_scene(scene, cat, viz_fn, out_path=args.out_path)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
