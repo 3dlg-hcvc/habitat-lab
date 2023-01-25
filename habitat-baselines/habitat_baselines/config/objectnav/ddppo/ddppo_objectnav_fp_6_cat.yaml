@@ -2,7 +2,7 @@
 
 defaults:
   - /habitat_baselines: habitat_baselines_rl_config_base
-  - /benchmark/nav/objectnav: objectnav_fp
+  - /benchmark/nav/objectnav: objectnav_fp_6_cat
   - _self_
 
 habitat:
@@ -15,12 +15,12 @@ habitat:
 
 habitat_baselines:
   torch_gpu_id: 0
-  tensorboard_dir: "data/training/floorplanner/ddppo/v0.2.0_33_cat_indoor_only/tb"
-  video_dir: "data/training/floorplanner/ddppo/v0.2.0_33_cat_indoor_only/video_dir"
+  tensorboard_dir: "data/training/floorplanner/ddppo/v0.2.0_6_cat_indoor_only/tb"
+  video_dir: "data/training/floorplanner/ddppo/v0.2.0_6_cat_indoor_only/video_dir"
   test_episode_count: -1
-  eval_ckpt_path_dir: "data/training/floorplanner/ddppo/v0.2.0_33_cat_indoor_only/checkpoints"
+  eval_ckpt_path_dir: "data/training/floorplanner/ddppo/v0.2.0_6_cat_indoor_only/checkpoints"
   num_environments: 54
-  checkpoint_folder: "data/training/floorplanner/ddppo/v0.2.0_33_cat_indoor_only/checkpoints"
+  checkpoint_folder: "data/training/floorplanner/ddppo/v0.2.0_6_cat_indoor_only/checkpoints"
   trainer_name: "ddppo"
   num_updates: 270000
   log_interval: 10

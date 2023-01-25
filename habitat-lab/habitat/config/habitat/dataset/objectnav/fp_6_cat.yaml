@@ -1,0 +1,9 @@
+# @package habitat.dataset
+defaults:
+  - /habitat/dataset: dataset_config_schema
+  - _self_
+
+type: ObjectNav-v1
+split: train
+data_path: data/datasets/objectnav/floorplanner/v0.2.0_6_cat_indoor_only/{split}/{split}.json.gz
+scenes_dir: data/scene_datasets/floorplanner/v0.2.0/configs/scenes
