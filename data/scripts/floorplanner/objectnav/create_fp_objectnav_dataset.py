@@ -94,9 +94,7 @@ with open(semantic_id_mapping_path, "r") as f:
 
 def get_objnav_config(i, scene):
 
-    TASK_CFG = (
-        "habitat-lab/habitat/config/benchmark/nav/objectnav/objectnav_fp.yaml"
-    )
+    TASK_CFG = "habitat-lab/habitat/config/benchmark/nav/objectnav/objectnav_fp_with_semantic.yaml"
     SCENE_DATASET_CFG = os.path.join(
         scenes_root_path, "hab-fp.scene_dataset_config.json"
     )
