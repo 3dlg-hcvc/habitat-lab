@@ -17,6 +17,7 @@ from typing import (
     cast,
 )
 
+import magnum as mn
 import numpy as np
 from gym import spaces
 from gym.spaces.box import Box
@@ -373,6 +374,101 @@ class HabitatSim(habitat_sim.Simulator, Simulator):
         )(self.habitat_config).get()
 
         return habitat_sim.Configuration(sim_config, [agent_config])
+
+    def compute_navmesh_island_classifications(self, active_indoor_threshold=0.85):
+        """
+        Classify navmeshes as outdoor or indoor and find the largest indoor island.
+        active_indoor_threshold is acceptacle indoor|outdoor ration for an active island (for example to allow some islands with a small porch or skylight)
+        """
+        if not self.pathfinder.is_loaded:
+            self.navmesh_classification_results = None
+            print("No NavMesh loaded to visualize.")
+            return
+
+        self.navmesh_classification_results = {}
+
+        self.navmesh_classification_results["active_island"] = -1
+        self.navmesh_classification_results[
+            "active_indoor_threshold"
+        ] = active_indoor_threshold
+        active_island_size = 0
+        number_of_indoor = 0
+        self.navmesh_classification_results["island_info"] = {}
+        self.indoor_islands = []
+
+        for island_ix in range(self.pathfinder.num_islands):
+            self.navmesh_classification_results["island_info"][island_ix] = {}
+            self.navmesh_classification_results["island_info"][island_ix][
+                "indoor"
+            ] = self.island_indoor_metric(island_ix=island_ix)
+            if (
+                self.navmesh_classification_results["island_info"][island_ix]["indoor"]
+                > active_indoor_threshold
+            ):
+                number_of_indoor += 1
+                self.indoor_islands.append(island_ix)
+            island_size = self.pathfinder.island_area(island_ix)
+            if (
+                active_island_size < island_size
+                and self.navmesh_classification_results["island_info"][island_ix][
+                    "indoor"
+                ]
+                > active_indoor_threshold
+            ):
+                active_island_size = island_size
+                self.navmesh_classification_results["active_island"] = island_ix
+        # print(
+        #     f"Found active island {self.navmesh_classification_results['active_island']} with area {active_island_size}."
+        # )
+        # print(
+        #     f"     Found {number_of_indoor} indoor islands out of {self.pathfinder.num_islands} total."
+        # )
+        for island_ix in range(self.pathfinder.num_islands):
+            island_info = self.navmesh_classification_results["island_info"][island_ix]
+            info_str = f"    {island_ix}: indoor ratio = {island_info['indoor']}, area = {self.pathfinder.island_area(island_ix)}"
+            if self.navmesh_classification_results["active_island"] == island_ix:
+                info_str += "  -- active--"
+            # print(info_str)
+
+    def island_indoor_metric(
+        self, island_ix: int, num_samples=100, jitter_dist=0.1, max_tries=1000
+    ) -> float:
+        """
+        Compute a heuristic for ratio of an island inside vs. outside based on checking whether there is a roof over a set of sampled navmesh points.
+        """
+
+        assert self.pathfinder.is_loaded
+        assert self.pathfinder.num_islands > island_ix
+
+        # collect jittered samples
+        samples = []
+        for _sample_ix in range(max_tries):
+            new_sample = self.pathfinder.get_random_navigable_point(
+                island_index=island_ix
+            )
+            too_close = False
+            for prev_sample in samples:
+                dist_to = np.linalg.norm(prev_sample - new_sample)
+                if dist_to < jitter_dist:
+                    too_close = True
+                    break
+            if not too_close:
+                samples.append(new_sample)
+            if len(samples) >= num_samples:
+                break
+
+        # classify samples
+        indoor_count = 0
+        for sample in samples:
+            raycast_results = self.cast_ray(
+                habitat_sim.geo.Ray(origin=sample, direction=mn.Vector3(0, 1, 0))
+            )
+            if raycast_results.has_hits():
+                # assume any hit indicates "indoor"
+                indoor_count += 1
+
+        # return the ration of indoor to outdoor as the metric
+        return indoor_count / len(samples)
 
     @property
     def sensor_suite(self) -> SensorSuite:
