@@ -461,7 +461,7 @@ class HabitatSim(habitat_sim.Simulator, Simulator):
         indoor_count = 0
         for sample in samples:
             raycast_results = self.cast_ray(
-                habitat_sim.geo.Ray(origin=sample, direction=mn.Vector3(0, 1, 0))
+                habitat_sim.geo.Ray(sample, mn.Vector3(0, 1, 0))
             )
             if raycast_results.has_hits():
                 # assume any hit indicates "indoor"
