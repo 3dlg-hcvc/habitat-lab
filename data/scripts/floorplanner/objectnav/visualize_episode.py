@@ -254,6 +254,7 @@ def visualize_all_start_end_points(episodes, scene, category, sim, out_path):
     os.makedirs(out_path, exist_ok=True)
     
     episode_viz_output_filename = os.path.join(out_path, f"{scene}_{category}.jpg")
+    cv2.putText(topdown_map, f"Num Episodes: {len(cat_episodes)}", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
     cv2.imwrite(episode_viz_output_filename, topdown_map[:, :, ::-1])
 
 def visualize_scene(scene, category, viz_fn, out_path):
