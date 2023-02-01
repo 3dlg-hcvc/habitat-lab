@@ -75,6 +75,10 @@ FAILURE_VIZ_FOLDER = os.path.join(
 NUM_GPUS = len(GPUtil.getAvailable(limit=256))
 TASKS_PER_GPU = 20
 deviceIds = GPUtil.getAvailable(order="memory", limit=NUM_GPUS)
+print('################################################################\n')
+print('################     GPU SETTINGS     ##########################\n')
+print('NUM_GPUS', NUM_GPUS)
+print('deviceIds', deviceIds)
 
 with open(GOAL_CATEGORIES_PATH, "r") as f:
     goal_categories = yaml.safe_load(f)
@@ -110,7 +114,7 @@ def get_objnav_config(i, scene):
 
     deviceIds = GPUtil.getAvailable(order="memory", limit=NUM_GPUS, maxLoad=1.0, maxMemory=1.0)
     if i < NUM_GPUS * TASKS_PER_GPU or len(deviceIds) == 0:
-        deviceId =deviceIds[i % len(deviceIds)]
+        deviceId = deviceIds[i % len(deviceIds)]
     else:
         deviceId = deviceIds[0]
     objnav_config.SIMULATOR.HABITAT_SIM_V0.GPU_DEVICE_ID = deviceId
