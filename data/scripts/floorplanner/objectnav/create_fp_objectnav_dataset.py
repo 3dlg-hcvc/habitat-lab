@@ -74,7 +74,7 @@ FAILURE_VIZ_FOLDER = os.path.join(
 )
 NUM_GPUS = len(GPUtil.getAvailable(limit=256))
 TASKS_PER_GPU = 20
-deviceIds = GPUtil.getAvailable(order="memory", limit=NUM_GPUS)
+deviceIds = GPUtil.getAvailable(order="memory", limit=NUM_GPUS, maxLoad=1.0, maxMemory=1.0)
 print('################################################################\n')
 print('################     GPU SETTINGS     ##########################\n')
 print('NUM_GPUS', NUM_GPUS)
