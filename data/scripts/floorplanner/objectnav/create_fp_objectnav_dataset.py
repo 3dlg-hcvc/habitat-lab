@@ -75,6 +75,8 @@ FAILURE_VIZ_FOLDER = os.path.join(
 NUM_GPUS = len(GPUtil.getAvailable(limit=256))
 TASKS_PER_GPU = 20
 deviceIds = GPUtil.getAvailable(order="memory", limit=NUM_GPUS)
+print('################################################################\n')
+print('NUM_GPUS', NUM_GPUS)
 
 with open(GOAL_CATEGORIES_PATH, "r") as f:
     goal_categories = yaml.safe_load(f)
