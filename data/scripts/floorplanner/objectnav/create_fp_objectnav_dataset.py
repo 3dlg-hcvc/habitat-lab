@@ -73,6 +73,7 @@ FAILURE_VIZ_FOLDER = os.path.join(
     OUTPUT_DATASET_FOLDER, "viz", "failure_cases"
 )
 NUM_GPUS = len(GPUtil.getAvailable(limit=256))
+NUM_GPUS = 2
 TASKS_PER_GPU = 20
 deviceIds = GPUtil.getAvailable(order="memory")
 
