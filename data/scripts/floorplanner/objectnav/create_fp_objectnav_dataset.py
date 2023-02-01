@@ -112,7 +112,7 @@ def get_objnav_config(i, scene):
     objnav_config.SIMULATOR.RGB_SENSOR.HEIGHT //= 2
     objnav_config.TASK.MEASUREMENTS = []
 
-    deviceIds = GPUtil.getAvailable(order="memory", limit=NUM_GPUS, maxLoad=1.0, maxMemory=1.0)
+    deviceIds = GPUtil.getAvailable(order="memory", limit=1.0, maxLoad=1.0, maxMemory=1.0)
     if i < NUM_GPUS * TASKS_PER_GPU or len(deviceIds) == 0:
         deviceId = deviceIds[i % len(deviceIds)]
     else:
