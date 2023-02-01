@@ -5,5 +5,5 @@ defaults:
 
 type: ObjectNav-v1
 split: train
-data_path: data/datasets/objectnav/ai2thor/robothor/v0.2.0_6_cat/{split}/{split}.json.gz
+data_path: data/datasets/objectnav/ai2thor/robothor/v0.0.8_6_cat/{split}/{split}.json.gz
 scenes_dir: data/scene_datasets/ai2thor/v0.0.8/configs/scenes/RoboTHOR
