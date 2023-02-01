@@ -113,7 +113,7 @@ def get_objnav_config(i, scene):
         order="memory", limit=1, maxLoad=1.0, maxMemory=1.0
     )
     if i < NUM_GPUS * TASKS_PER_GPU or len(deviceIds) == 0:
-        deviceId = i % NUM_GPUS
+        deviceId =deviceIds[i % NUM_GPUS]
     else:
         deviceId = deviceIds[0]
     objnav_config.SIMULATOR.HABITAT_SIM_V0.GPU_DEVICE_ID = deviceId
