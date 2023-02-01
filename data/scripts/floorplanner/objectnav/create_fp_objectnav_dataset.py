@@ -73,9 +73,8 @@ FAILURE_VIZ_FOLDER = os.path.join(
     OUTPUT_DATASET_FOLDER, "viz", "failure_cases"
 )
 NUM_GPUS = len(GPUtil.getAvailable(limit=256))
-NUM_GPUS = 2
-TASKS_PER_GPU = 12
-deviceIds = GPUtil.getAvailable(order="memory")
+TASKS_PER_GPU = 20
+deviceIds = GPUtil.getAvailable(order="memory", limit=NUM_GPUS)
 
 with open(GOAL_CATEGORIES_PATH, "r") as f:
     goal_categories = yaml.safe_load(f)
@@ -109,9 +108,7 @@ def get_objnav_config(i, scene):
     objnav_config.SIMULATOR.RGB_SENSOR.HEIGHT //= 2
     objnav_config.TASK.MEASUREMENTS = []
 
-    deviceIds = GPUtil.getAvailable(
-        order="memory", limit=1, maxLoad=1.0, maxMemory=1.0
-    )
+    deviceIds = GPUtil.getAvailable(order="memory", limit=NUM_GPUS, maxLoad=1.0, maxMemory=1.0)
     if i < NUM_GPUS * TASKS_PER_GPU or len(deviceIds) == 0:
         deviceId =deviceIds[i % NUM_GPUS]
     else:
