@@ -117,7 +117,7 @@ def get_objnav_config(i, scene):
     if i < NUM_GPUS * TASKS_PER_GPU or len(deviceIds) == 0:
         deviceId = i % NUM_GPUS
     else:
-        deviceId = deviceIds[0]
+        deviceId = 0
     print('################################################################\n')
     print('deviceId', deviceId)
     print('################################################################\n')
