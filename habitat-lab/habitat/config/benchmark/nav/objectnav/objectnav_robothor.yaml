@@ -4,7 +4,7 @@ defaults:
   - /habitat: habitat_config_base
   - /habitat/task: objectnav
   - /habitat/simulator/agents@habitat.simulator.agents.main_agent: rgb_agent
-  - /habitat/dataset/objectnav: hm3d
+  - /habitat/dataset/objectnav: robothor
   - _self_
 
 habitat:
@@ -12,6 +12,7 @@ habitat:
     max_episode_steps: 500
 
   simulator:
+    scene_dataset: "data/scene_datasets/ai2thor/v0.0.8/ai2thor.scene_dataset_config.json"
     turn_angle: 30
     tilt_angle: 30
     action_space_config: "v1"
