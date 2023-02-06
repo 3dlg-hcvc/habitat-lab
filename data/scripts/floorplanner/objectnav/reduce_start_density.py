@@ -19,9 +19,9 @@ from visualize_episode import get_objnav_config, get_simulator, _visualize_goal,
 
 SCENE_DSET_STATS_PATH = 'data/scene_datasets/fp_v1_with_objects_stats.tsv'
 SCENES_PATH = 'data/datasets/objectnav/floorplanner/v0.2.0_6_cat_indoor_only/train/content'
-OUT_PATH = 'data/datasets/objectnav/floorplanner/v0.2.0_6_cat_indoor_only/train/content_sampled'
-NUM_EPS = 5 # num of episodes to sample per cluster
-
+OUT_PATH = 'data/datasets/objectnav/floorplanner/v0.2.0_6_cat_indoor_only/train/content_sampled_fps'
+NUM_PER_SCENE = 20000 # num of episodes to sample per cluster
+VISUALIZE = True
 
 def seed(seed=0):
     random.seed(seed)
@@ -49,7 +49,7 @@ def fps_wrapper(start_points, num_points):
 
     return idxes[0].cpu().numpy()
 
-def sample_episodes_with_fps(episodes, cluster_labels, num_eps):
+def sample_episodes_incluster_fps(episodes, cluster_labels, num_eps):
 
     sampled_episodes = []
     clusters = np.unique(cluster_labels)
@@ -65,6 +65,18 @@ def sample_episodes_with_fps(episodes, cluster_labels, num_eps):
                 sampled_episodes.append(cl_eps[idx])
         else:
             sampled_episodes.extend(cl_eps)
+
+    return sampled_episodes
+
+def sample_episodes_with_fps(episodes, num_eps):
+
+    start_points = [x['start_position'] for x in episodes]
+    start_points = np.array(start_points)
+    sampled_idx = fps_wrapper(start_points, num_points=num_eps)
+
+    sampled_episodes = []
+    for idx in sampled_idx:
+        sampled_episodes.append(episodes[idx])
 
     return sampled_episodes
 
@@ -100,7 +112,7 @@ def visualize_cluster_points(scene, scene_data, episodes, category, cluster_labe
             sim,
             start_pos=ep["start_position"],
             marker="circle",
-            color=np.array(COLOR_MAP(cluster_labels[i] / np.max(cluster_labels)))[:3]*255,
+            color=np.array([255., 0., 0.]),#np.array(COLOR_MAP(cluster_labels[i] / np.max(cluster_labels)))[:3]*255,
             radius=3,
             topdown_map=topdown_map,
             boundary=False,
@@ -125,7 +137,6 @@ def main():
             ep_data = json.loads(fin.read().decode("utf-8"))
 
         # separate episodes category-wise
-
         cat_sampled_episodes = []
         for cat in ep_data['category_to_task_category_id'].keys():
 
@@ -133,12 +144,13 @@ def main():
 
             if len(cat_eps) == 0:
                 continue
-            # for each category -- cluster based on starting points with cluster size
-            cluster_labels, _ = cluster_episodes(episodes=cat_eps)
-            # sample X number of episodes from each cluster (maybe use fps)
-            cat_eps = sample_episodes_with_fps(cat_eps, cluster_labels, num_eps=NUM_EPS)
 
-            # visualize_cluster_points(sc.replace('.json.gz', ''), ep_data, cat_eps, cat, cluster_labels, 'cluster_check/')
+            # sample X number of episodes from each category 
+            NUM_EPS = int(NUM_PER_SCENE * (len(cat_eps) / len(ep_data['episodes'])))
+            cat_eps = sample_episodes_with_fps(cat_eps, num_eps=NUM_EPS)
+
+            if VISUALIZE:
+                visualize_cluster_points(sc.replace('.json.gz', ''), ep_data, cat_eps, cat, None, f'{OUT_PATH}/vis')
             cat_sampled_episodes.extend(cat_eps)
         # combine again 
         ep_data['episodes'] = cat_sampled_episodes
