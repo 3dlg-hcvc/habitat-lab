@@ -418,6 +418,7 @@ class RLEnv(gym.Env):
             return BaseEpisode(
                 episode_id=self._env.current_episode.episode_id,
                 scene_id=self._env.current_episode.scene_id,
+                object_category=self._env.current_episode.object_category,
             )
 
     @profiling_wrapper.RangeContext("RLEnv.reset")

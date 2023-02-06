@@ -8,7 +8,6 @@ import contextlib
 import gzip
 import json
 import os
-import pickle
 import random
 import time
 from collections import defaultdict, deque
@@ -1152,9 +1151,10 @@ class PPOTrainer(BaseRLTrainer):
                         frame = observations_to_image(
                             {k: v[i] * 0.0 for k, v in batch.items()}, infos[i]
                         )
-                    frame = overlay_frame(
-                        frame, self._extract_scalars_from_info(infos[i])
-                    )
+                    object_category = current_episodes_info[i].object_category
+                    info_scalars = self._extract_scalars_from_info(infos[i])
+                    info_scalars["goal"] = object_category
+                    frame = overlay_frame(frame, info_scalars)
                     rgb_frames[i].append(frame)
 
                 # episode ended
@@ -1291,7 +1291,7 @@ class PPOTrainer(BaseRLTrainer):
                     x for x in stats_episodes.keys() if x[0] == (scene, ep_id)
                 ][0]
 
-                assert ep_id not in episode_stats_dict[scene_id].keys()
+                # assert ep_id not in episode_stats_dict[scene_id].keys() # might fail for HM3D because it doesnt have unique episode ids
                 episode_stats_dict[scene_id][ep_id] = stats_episodes[key]
 
         df = convert_episode_stats_dict_to_df(episode_stats_dict)

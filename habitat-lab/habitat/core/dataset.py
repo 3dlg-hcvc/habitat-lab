@@ -51,6 +51,7 @@ class BaseEpisode:
 
     episode_id: str = attr.ib(default=None, validator=not_none_validator)
     scene_id: str = attr.ib(default=None, validator=not_none_validator)
+    object_category: str = attr.ib(default=None, validator=not_none_validator)
 
 
 @attr.s(auto_attribs=True, kw_only=True)

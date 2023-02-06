@@ -391,7 +391,7 @@ def generate_video(
     fps: int = 10,
     verbose: bool = True,
     keys_to_include_in_name: Optional[List[str]] = None,
-    episode_metadata = None
+    episode_metadata: Optional = None,
 ) -> None:
     r"""Generate video according to specified information.
 
@@ -429,15 +429,26 @@ def generate_video(
     for k in use_metrics_k:
         metric_strs.append(f"{k}={metrics[k]:.2f}")
 
-    video_name = f"episode={episode_id}-ckpt={checkpoint_idx}-" + "-".join(
-        metric_strs
-    )
+    if episode_metadata is not None:
+        scene_id = episode_metadata.scene_id
+        if "hm3d" in scene_id:
+            scene_id = scene_id.split("/")[-2]
+        elif "fp" in scene_id or "floorplanner" in scene_id:
+            scene_id = scene_id.split("/")[-1]
+        elif "thor" in scene_id or "floorplanner" in scene_id:
+            scene_id = scene_id.split("/")[-1]
 
-    # TODO: Modify filename based on updated metadata fields
-    # if episode_metadata is not None:
-        # ep_scene_id = episode_metadata.scene_id[episode_metadata.scene_id.rfind('/') + 1:]
-        # ep_goal_category = episode_metadata.object_category
-        # video_name += f"-scene={ep_scene_id}-category={ep_goal_category}"
+        if "object_category" in dir(episode_metadata):
+            scene_id = scene_id + f"-cat={episode_metadata.object_category}"
+
+        video_name = (
+            f"scene={scene_id}-episode={episode_id}-ckpt={checkpoint_idx}-"
+            + "-".join(metric_strs)
+        )
+    else:
+        video_name = f"episode={episode_id}-ckpt={checkpoint_idx}-" + "-".join(
+            metric_strs
+        )
 
     if "disk" in video_option:
         assert video_dir is not None
@@ -734,13 +745,13 @@ def convert_episode_stats_dict_to_df(episode_stats_dict):
         for episode_id, episode_metrics in episodes.items():
             scene_ids.append(scene)
             episode_ids.append(episode_id)
-            
+
             for metric in info_keys:
                 info[metric].append(episode_metrics[metric])
 
     df = pd.DataFrame([])
-    df['scene_id'] = scene_ids
-    df['episode_id'] = episode_ids
+    df["scene_id"] = scene_ids
+    df["episode_id"] = episode_ids
     for metric in info_keys:
         df[metric] = info[metric]
 
