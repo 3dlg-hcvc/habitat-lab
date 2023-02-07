@@ -21,7 +21,7 @@ from data.scripts.floorplanner.utils.utils import (
 )
 from habitat.core.simulator import AgentState, ShortestPathPoint
 from habitat.datasets.pointnav.pointnav_generator import (
-    ISLAND_RADIUS_LIMIT,
+    ISLAND_RADIUS_LIMIT,  # TODO: fetch from constants file
     _ratio_sample_rate,
 )
 from habitat.datasets.utils import get_action_shortest_path
@@ -103,7 +103,6 @@ def is_compatible_episode(
                 break
         if not valid:
             return FAIL_TUPLE
-
     closest_goal_targets = (
         sim.geodesic_distance(s, vps) for vps in goal_targets
     )
@@ -244,6 +243,7 @@ def build_goal(
     grid_radius: float = 10.0,
     turn_radians: float = np.pi / 9,
     max_distance: float = 1.0,
+    indoor_check: bool = False,
 ):
     object_position = object_aabb.center()
     eps = 1e-5
@@ -304,14 +304,15 @@ def build_goal(
                 "on_island_after_snapping",
             )
 
-        # snapped point outdoors
-        if sim.pathfinder.get_island(pt) not in sim.indoor_islands:
-            return (
-                -1,
-                pt,
-                None,
-                "outdoor_viewpoint",
-            )
+        if indoor_check:
+            # snapped point outdoors
+            if sim.pathfinder.get_island(pt) not in sim.indoor_islands:
+                return (
+                    -1,
+                    pt,
+                    None,
+                    "outdoor_viewpoint",
+                )
 
         goal_direction = object_position - pt
 
@@ -725,6 +726,7 @@ def generate_objectnav_episode_v2(
     scene_dataset_config: str = "default",
     same_floor_flag: bool = False,
     eps_generated: int = 0,
+    indoor_check: bool = False,
 ):
     r"""Generator function that generates PointGoal navigation episodes.
     An episode is trivial if there is an obstacle-free, straight line between
@@ -841,8 +843,11 @@ def generate_objectnav_episode_v2(
                     source_position is None
                     or np.any(np.isnan(source_position))
                     or not sim.is_navigable(source_position)
-                    or sim.pathfinder.get_island(source_position)
-                    not in sim.indoor_islands
+                    or (
+                        indoor_check
+                        and sim.pathfinder.get_island(source_position)
+                        not in sim.indoor_islands
+                    )
                 ):
                     print(f"Skipping cluster {cluster_center}")
                     num_cluster_episodes = 0

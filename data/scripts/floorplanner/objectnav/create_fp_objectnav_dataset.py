@@ -44,45 +44,60 @@ os.environ["HABITAT_SIM_LOG"] = "quiet"
 os.environ["GLOG_minloglevel"] = "2"
 
 COMPRESSION = ".gz"
+# DATASET = "ai2thor/procthor" # "floorplanner"
+DATASET = "floorplanner"
 SCENE_DATASET_VERSION_ID = "v0.2.0"
+# EPISODE_DATASET_VERSION_ID = "v0.0.8_6_cat" # "v0.0.8_6_cat"
 EPISODE_DATASET_VERSION_ID = "v0.2.0_6_cat_indoor_only"
 GOAL_CATEGORIES_FILENAME = "6_goal_categories.yaml"
 OBJECT_ON_SAME_FLOOR = True  # [UPDATED]
-NUM_EPISODES = 50000
+NUM_EPISODES = 30
 MIN_OBJECT_DISTANCE = 1.0
 MAX_OBJECT_DISTANCE = 30.0
+INDOOR_CHECK = True
 
 NUM_GPUS = len(GPUtil.getAvailable(limit=256))
 TASKS_PER_GPU = 20
-deviceIds = GPUtil.getAvailable(order="memory")
 
-scenes_root_path = (
-    f"data/scene_datasets/floorplanner/{SCENE_DATASET_VERSION_ID}"
-)
+if "thor" in DATASET:
+    DATASET, SUBDATASET = DATASET.split("/")
+    # ISLAND_RADIUS_LIMIT = 1.0 # TODO: fetch from constants/cfg file
+    INDOOR_CHECK = False
+
+scenes_root_path = f"data/scene_datasets/{DATASET}/{SCENE_DATASET_VERSION_ID}"
 goal_categories_path = os.path.join(
-    "data/scene_datasets/floorplanner/goals/", GOAL_CATEGORIES_FILENAME
+    f"data/scene_datasets/{DATASET}/goals/", GOAL_CATEGORIES_FILENAME
 )
 semantic_id_mapping_path = os.path.join(
     scenes_root_path, "configs", "semantics", "object_semantic_id_mapping.json"
 )
-scene_splits_path = os.path.join(
-    scenes_root_path, "configs", "scene_splits.yaml"
-)
+if "thor" not in DATASET:
+    scene_splits_path = os.path.join(
+        scenes_root_path, "configs", "scene_splits.yaml"
+    )
+else:
+    scene_splits_path = os.path.join(
+        scenes_root_path, "configs", "scene_splits", f"{SUBDATASET}.yaml"
+    )
 
 with open(scene_splits_path, "r") as f:
     scene_splits = yaml.safe_load(f)
 
-output_dataset_folder = (
-    f"data/datasets/objectnav/floorplanner/{EPISODE_DATASET_VERSION_ID}"
-)
+if "thor" not in DATASET:
+    output_dataset_folder = (
+        f"data/datasets/objectnav/{DATASET}/{EPISODE_DATASET_VERSION_ID}"
+    )
+else:
+    output_dataset_folder = f"data/datasets/objectnav/{DATASET}/{SUBDATASET}/{EPISODE_DATASET_VERSION_ID}"
+
 episode_dataset_viz_folder = os.path.join(
-    output_dataset_folder, "viz", "episodes"
+    output_dataset_folder, "viz-30-val-eps-per-scene", "episodes"
 )
 goal_distances_viz_folder = os.path.join(
-    output_dataset_folder, "viz", "goal_distances"
+    output_dataset_folder, "viz-30-val-eps-per-scene", "goal_distances"
 )
 failure_viz_folder = os.path.join(
-    output_dataset_folder, "viz", "failure_cases"
+    output_dataset_folder, "viz-30-val-eps-per-scene", "failure_cases"
 )
 
 with open(goal_categories_path, "r") as f:
@@ -94,12 +109,18 @@ with open(semantic_id_mapping_path, "r") as f:
 
 def get_objnav_config(i, scene):
 
-    TASK_CFG = "habitat-lab/habitat/config/benchmark/nav/objectnav/objectnav_fp_with_semantic.yaml"
-    SCENE_DATASET_CFG = os.path.join(
-        scenes_root_path, "hab-fp.scene_dataset_config.json"
-    )
+    if "thor" not in DATASET:
+        TASK_CFG = "habitat-lab/habitat/config/benchmark/nav/objectnav/objectnav_fp_with_semantic.yaml"
+        SCENE_DATASET_CFG = os.path.join(
+            scenes_root_path, "hab-fp.scene_dataset_config.json"
+        )
+    else:
+        TASK_CFG = f"habitat-lab/habitat/config/benchmark/nav/objectnav/objectnav_{SUBDATASET}_with_semantic.yaml"
+        SCENE_DATASET_CFG = os.path.join(
+            scenes_root_path, "ai2thor.scene_dataset_config.json"
+        )
 
-    objnav_config = get_config(TASK_CFG)  # .clone()
+    objnav_config = get_config(TASK_CFG)
 
     deviceIds = GPUtil.getAvailable(
         order="memory", limit=1, maxLoad=1.0, maxMemory=1.0
@@ -151,11 +172,14 @@ def get_simulator(objnav_config):
         "Sim-v0", config=objnav_config.habitat.simulator
     )
     # no need to recompute navmesh because forked hab-sim installation includes static objs by default
-    sim.compute_navmesh_island_classifications()
-    for island_idx in sim.indoor_islands:
-        if sim.pathfinder.island_area(island_idx) > ISLAND_RADIUS_LIMIT:
-            return sim
-    return None  # scene has no valid indoor islands
+    if INDOOR_CHECK:
+        sim.compute_navmesh_island_classifications()
+        for island_idx in sim.indoor_islands:
+            if sim.pathfinder.island_area(island_idx) > ISLAND_RADIUS_LIMIT:
+                return sim
+        return None  # scene has no valid indoor islands
+    else:
+        return sim
 
 
 def dense_sampling_trimesh(triangles, density=25.0, max_points=200000):
@@ -216,7 +240,6 @@ def generate_scene(args):
     objnav_config = get_objnav_config(i, scene)
 
     sim = get_simulator(objnav_config)
-
     if sim is None:
         print(f"Scene {scene} has no valid indoor islands.")
         return scene, 0, defaultdict(list), None, 0
@@ -326,6 +349,7 @@ def generate_scene(args):
                 object_obb=obj["obb"],
                 cell_size=cell_size,
                 grid_radius=3.0,
+                indoor_check=INDOOR_CHECK,
             )
 
             if goal == None:
@@ -399,8 +423,12 @@ def generate_scene(args):
             if sim.pathfinder.is_navigable(center):
                 if sim.island_radius(center) < ISLAND_RADIUS_LIMIT:
                     continue
-                if sim.pathfinder.get_island(center) not in sim.indoor_islands:
-                    continue
+                if INDOOR_CHECK:
+                    if (
+                        sim.pathfinder.get_island(center)
+                        not in sim.indoor_islands
+                    ):
+                        continue
                 center = np.array(sim.pathfinder.snap_point(center)).tolist()
                 locs = navmesh_pc[labels == i, :].tolist()
                 stddev = np.linalg.norm(np.std(locs, axis=0)).item()
@@ -487,6 +515,7 @@ def generate_scene(args):
                         scene_dataset_config=scene_dataset_config,
                         same_floor_flag=OBJECT_ON_SAME_FLOOR,
                         eps_generated=eps_generated,
+                        indoor_check=INDOOR_CHECK,
                     )
                 ):
                     if "distances" not in goals.keys():
@@ -608,7 +637,7 @@ if __name__ == "__main__":
     # total_all = 0
     # subtotals = []
     # for inp in tqdm.tqdm(inputs):
-    #     if inp[1] != '102344022':
+    #     if inp[1] != 'ProcTHOR-Train-0':
     #         continue
     #     scene, subtotal, subtotal_by_cat, fname = generate_scene(inp)
     #     total_all += subtotal
