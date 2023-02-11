@@ -245,9 +245,9 @@ def build_goal(
     max_distance: float = 1.0,
     indoor_check: bool = False,
 ):
-    object_position = object_aabb.center()
+    object_position = object_aabb.center#()
     eps = 1e-5
-    x_len, _, z_len = np.array(object_aabb.size()) / 2.0 + max_distance
+    x_len, _, z_len = object_aabb.sizes / 2.0 + max_distance #np.array(object_aabb.size()) / 2.0 + max_distance
 
     x_bxp = np.arange(-x_len, x_len + eps, step=cell_size) + object_position[0]
     z_bxp = np.arange(-z_len, z_len + eps, step=cell_size) + object_position[2]

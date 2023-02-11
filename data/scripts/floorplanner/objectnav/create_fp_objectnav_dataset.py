@@ -10,6 +10,7 @@ import os.path as osp
 import pickle
 import traceback
 from collections import defaultdict
+import copy
 
 import cv2
 import GPUtil
@@ -45,19 +46,19 @@ os.environ["GLOG_minloglevel"] = "2"
 
 COMPRESSION = ".gz"
 # DATASET = "ai2thor/procthor" # "floorplanner"
-DATASET = "floorplanner"
-SCENE_DATASET_VERSION_ID = "v0.2.0"
+DATASET = "hm3d"
+SCENE_DATASET_VERSION_ID = "v2"
 # EPISODE_DATASET_VERSION_ID = "v0.0.8_6_cat" # "v0.0.8_6_cat"
-EPISODE_DATASET_VERSION_ID = "v0.2.0_6_cat_indoor_only"
-GOAL_CATEGORIES_FILENAME = "6_goal_categories.yaml"
+EPISODE_DATASET_VERSION_ID = "v2_33_cat"
+GOAL_CATEGORIES_FILENAME = "33_goal_categories.yaml"
 OBJECT_ON_SAME_FLOOR = True  # [UPDATED]
-NUM_EPISODES = 30
+NUM_EPISODES = 50000
 MIN_OBJECT_DISTANCE = 1.0
 MAX_OBJECT_DISTANCE = 30.0
-INDOOR_CHECK = True
+INDOOR_CHECK = False
 
-NUM_GPUS = len(GPUtil.getAvailable(limit=256))
-TASKS_PER_GPU = 20
+NUM_GPUS = 1#len(GPUtil.getAvailable(limit=256))
+TASKS_PER_GPU = 1
 
 if "thor" in DATASET:
     DATASET, SUBDATASET = DATASET.split("/")
@@ -106,19 +107,33 @@ with open(goal_categories_path, "r") as f:
 with open(semantic_id_mapping_path, "r") as f:
     semantic_id_mapping = json.load(f)
 
+fp_hm3d_catmap = pd.read_csv(f'data/scene_datasets/{DATASET}/fp-hm3d-mapping.csv')
+
+FP_HM3D_MAP = defaultdict(list)
+
+for i in range(fp_hm3d_catmap.shape[0]):
+    for j in range(2, fp_hm3d_catmap.shape[1]):
+        if not pd.isnull(fp_hm3d_catmap.iloc[i, j]):
+            FP_HM3D_MAP[fp_hm3d_catmap.iloc[i, 1]].append(fp_hm3d_catmap.iloc[i, j])
+
+HM3D_FP_MAP = {}
+for fpobj, hmobj in FP_HM3D_MAP.items():
+    for ho in hmobj:
+        HM3D_FP_MAP[ho] = fpobj
+
 
 def get_objnav_config(i, scene):
 
-    if "thor" not in DATASET:
-        TASK_CFG = "habitat-lab/habitat/config/benchmark/nav/objectnav/objectnav_fp_with_semantic.yaml"
-        SCENE_DATASET_CFG = os.path.join(
-            scenes_root_path, "hab-fp.scene_dataset_config.json"
-        )
-    else:
-        TASK_CFG = f"habitat-lab/habitat/config/benchmark/nav/objectnav/objectnav_{SUBDATASET}_with_semantic.yaml"
-        SCENE_DATASET_CFG = os.path.join(
-            scenes_root_path, "ai2thor.scene_dataset_config.json"
-        )
+    # if "thor" not in DATASET:
+    TASK_CFG = "habitat-lab/habitat/config/benchmark/nav/objectnav/objectnav_hm3d_with_semantic.yaml"
+    SCENE_DATASET_CFG = os.path.join(
+        scenes_root_path, "hm3d_annotated_basis.scene_dataset_config.json"
+    )
+    # else:
+    #     TASK_CFG = f"habitat-lab/habitat/config/benchmark/nav/objectnav/objectnav_{SUBDATASET}_with_semantic.yaml"
+    #     SCENE_DATASET_CFG = os.path.join(
+    #         scenes_root_path, "ai2thor.scene_dataset_config.json"
+    #     )
 
     objnav_config = get_config(TASK_CFG)
 
@@ -172,14 +187,14 @@ def get_simulator(objnav_config):
         "Sim-v0", config=objnav_config.habitat.simulator
     )
     # no need to recompute navmesh because forked hab-sim installation includes static objs by default
-    if INDOOR_CHECK:
-        sim.compute_navmesh_island_classifications()
-        for island_idx in sim.indoor_islands:
-            if sim.pathfinder.island_area(island_idx) > ISLAND_RADIUS_LIMIT:
-                return sim
-        return None  # scene has no valid indoor islands
-    else:
-        return sim
+    # if INDOOR_CHECK:
+    #     sim.compute_navmesh_island_classifications()
+    #     for island_idx in sim.indoor_islands:
+    #         if sim.pathfinder.island_area(island_idx) > ISLAND_RADIUS_LIMIT:
+    #             return sim
+    #     return None  # scene has no valid indoor islands
+    # else:
+    return sim
 
 
 def dense_sampling_trimesh(triangles, density=25.0, max_points=200000):
@@ -192,6 +207,17 @@ def dense_sampling_trimesh(triangles, density=25.0, max_points=200000):
     t_pts, _ = trimesh.sample.sample_surface_even(t_mesh, n_points)
     return t_pts
 
+def get_gravity_mobb(object_obb: habitat_sim.geo.OBB):
+    bounding_area = [
+        (object_obb.local_to_world @ np.array([x, y, z, 1]))[:-1]
+        for x, y, z in itertools.product(*([[-1, 1]] * 3))
+    ]
+    bounding_area = np.array(bounding_area, dtype=np.float32)
+    # print('Bounding Area: %s' % bounding_area)
+    # TODO Maybe Cache this
+    return habitat_sim.geo.compute_gravity_aligned_MOBB(
+        habitat_sim.geo.GRAVITY, bounding_area
+    )
 
 def get_scene_key(glb_path):
     return osp.basename(glb_path).split(".")[0]
@@ -244,60 +270,111 @@ def generate_scene(args):
         print(f"Scene {scene} has no valid indoor islands.")
         return scene, 0, defaultdict(list), None, 0
 
-    total_objects = sim.get_rigid_object_manager().get_num_objects()
+    total_objects = total_objects = len(sim.semantic_annotations().objects)
 
     # Check there exists a navigable point
     test_point = sim.sample_navigable_point()
     if total_objects == 0 or not sim.is_navigable(np.array(test_point)):
-        print(f"Scene {scene} has no objects / is not navigable: %s" % scene)
+        print(f"Scene {scene} has {total_objects} objects / is not navigable: %s" % scene)
         sim.close()
         return scene, total_objects, defaultdict(list), None, 0
 
     objects = []
 
-    rgm = sim.get_rigid_object_manager()
-    obj_ids = [int(x.split(",")[5]) for x in rgm.get_objects_info()[1:]]
+    # rgm = sim.get_rigid_object_manager()
+    # obj_ids = [int(x.split(",")[5]) for x in rgm.get_objects_info()[1:]]
 
-    # recording (bboxes, category, etc.) info about all objects in scene
-    for obj_id in tqdm.tqdm(
-        obj_ids,
-        desc="Generating object data",
+    # # recording (bboxes, category, etc.) info about all objects in scene
+    # for obj_id in tqdm.tqdm(
+    #     obj_ids,
+    #     desc="Generating object data",
+    # ):
+    #     source_obj = rgm.get_object_by_id(obj_id)
+    #     semantic_id = source_obj.semantic_id
+
+    #     category_name = None
+    #     for cat, cat_id in semantic_id_mapping.items():
+    #         if cat_id == semantic_id:
+    #             category_name = cat
+    #             break
+
+    #     # CRUCIAL: replacing semantic id with object id to fetch instance maps
+    #     for node in source_obj.visual_scene_nodes:
+    #         node.semantic_id = obj_id
+
+    #     if (
+    #         category_name is None or category_name not in goal_categories
+    #     ):  # non-goal category
+    #         continue
+
+    #     if source_obj is None:
+    #         print("=====> Source object is None. Skipping.")
+    #         continue
+
+    #     aabb = get_aabb(obj_id, sim, transformed=True)
+    #     center = np.array(source_obj.translation)
+    #     sizes = np.array(source_obj.root_scene_node.cumulative_bb.size())
+    #     rotation = source_obj.rotation
+
+    #     obb = habitat_sim.geo.OBB(center, sizes, rotation)
+    #     obj = {
+    #         "center": source_obj.translation,
+    #         "id": obj_id,
+    #         "object_name": rgm.get_object_handle_by_id(obj_id),
+    #         "obb": obb,
+    #         "aabb": aabb,
+    #         "category_id": semantic_id,
+    #         "category_name": category_name,
+    #     }
+    #     objects.append(obj)
+
+    # print("Scene loaded.")
+
+        ####### documenting info about all objects (bboxes, category info, and such)
+
+    for source_id, source_obj in enumerate(
+        tqdm.tqdm(
+            sim.semantic_annotations().objects,
+            desc="Generating object data",
+        )
     ):
-        source_obj = rgm.get_object_by_id(obj_id)
-        semantic_id = source_obj.semantic_id
-
-        category_name = None
-        for cat, cat_id in semantic_id_mapping.items():
-            if cat_id == semantic_id:
-                category_name = cat
-                break
-
-        # CRUCIAL: replacing semantic id with object id to fetch instance maps
-        for node in source_obj.visual_scene_nodes:
-            node.semantic_id = obj_id
-
-        if (
-            category_name is None or category_name not in goal_categories
-        ):  # non-goal category
-            continue
-
         if source_obj is None:
-            print("=====> Source object is None. Skipping.")
+            print('=====> Source object is None. Skipping.')
+            continue
+        raw_name = copy.deepcopy(source_obj.category.name(""))
+        ########################################################################
+        # # Apply annotation correction if available
+        # obj_id = int(source_obj.id.split("_")[-1])
+        # scene_name = scene.split("/")[-2]
+        # if (scene_name, obj_id) in ANNOTATION_CORRECTIONS:
+        #     expec_raw_name = ANNOTATION_CORRECTIONS[(scene_name, obj_id)][1]
+        #     if raw_name != expec_raw_name:
+        #         print(f"Raw name: {raw_name}, Annot corr: {ANNOTATION_CORRECTIONS[(scene_name, obj_id)]}")
+        #     assert raw_name == expec_raw_name
+        #     raw_name = ANNOTATION_CORRECTIONS[(scene_name, obj_id)][1]
+        ########################################################################
+        raw_name = raw_name.strip().lower()
+        if raw_name not in HM3D_FP_MAP: #non-goal category
+            continue
+        category_name = HM3D_FP_MAP[raw_name] #HM3D_RAW_TO_CAT_MAPPING[raw_name]
+        category_id = semantic_id_mapping[category_name] #source_obj.category.index("")
+
+        # if category_name not in wordlist:
+        #     continue
+        if np.all(source_obj.obb.sizes == 0):
+            continue
+        if category_name == None:
+            print("ERROR NONE CATEGORY NAME: %s %d" % (scene, source_id))
             continue
 
-        aabb = get_aabb(obj_id, sim, transformed=True)
-        center = np.array(source_obj.translation)
-        sizes = np.array(source_obj.root_scene_node.cumulative_bb.size())
-        rotation = source_obj.rotation
-
-        obb = habitat_sim.geo.OBB(center, sizes, rotation)
         obj = {
-            "center": source_obj.translation,
-            "id": obj_id,
-            "object_name": rgm.get_object_handle_by_id(obj_id),
-            "obb": obb,
-            "aabb": aabb,
-            "category_id": semantic_id,
+            "center": source_obj.aabb.center,
+            "id": int(source_obj.id.split("_")[-1]),
+            "object_name": source_obj.id,
+            "obb": source_obj.obb,
+            "aabb": source_obj.aabb,
+            "gravity_mobb": get_gravity_mobb(source_obj.obb),
+            "category_id": category_id,
             "category_name": category_name,
         }
         objects.append(obj)

@@ -116,10 +116,23 @@ def get_topdown_map_with_path(sim, start_pos, start_rot, goal_pos):
 
     return topdown_map
 
+def get_back_top_left(obb):
+    x, y, z = obb.sizes / 2.
+    cx, cy, cz = obb.center
+
+    return [cx - x, cy + y, cz - z]
+
+def get_front_top_right(obb):
+    x, y, z = obb.sizes / 2.
+    cx, cy, cz = obb.center
+
+    return [cx + x, cy + y, cz + z]
 
 def draw_obj_bbox_on_topdown_map(topdown_map, object_aabb, sim):
-    object_topdown_bb_corner_1 = np.array(object_aabb.back_top_left)
-    object_topdown_bb_corner_2 = np.array(object_aabb.front_top_right)
+    # print(object_aabb)
+    # import pdb; pdb.set_trace()
+    object_topdown_bb_corner_1 = np.array(get_back_top_left(object_aabb)) #np.array(object_aabb.back_top_left)
+    object_topdown_bb_corner_2 = np.array(get_front_top_right(object_aabb))
     grid_dimensions = (topdown_map.shape[0], topdown_map.shape[1])
     object_topdown_bb_corner_1 = maps.to_grid(
         object_topdown_bb_corner_1[2],
