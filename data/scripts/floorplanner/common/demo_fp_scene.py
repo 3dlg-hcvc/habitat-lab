@@ -5,7 +5,7 @@ from data.scripts.floorplanner.utils.utils import get_topdown_map
 from habitat.config import read_write
 
 task_config_path = (
-    "habitat-lab/habitat/config/benchmark/nav/objectnav/objectnav_fp.yaml"
+    "habitat-lab/habitat/config/benchmark/nav/objectnav/objectnav_procthor.yaml"
 )
 
 
@@ -30,5 +30,5 @@ def visualize_fp_scenes(scenes):
 
 
 if __name__ == "__main__":
-    scenes = ["102344349"]
+    scenes = ["ProcTHOR-Train-3"]
     visualize_fp_scenes(scenes)

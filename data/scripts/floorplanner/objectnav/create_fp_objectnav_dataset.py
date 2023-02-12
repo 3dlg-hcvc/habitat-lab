@@ -44,12 +44,12 @@ os.environ["HABITAT_SIM_LOG"] = "quiet"
 os.environ["GLOG_minloglevel"] = "2"
 
 COMPRESSION = ".gz"
-# DATASET = "ai2thor/procthor" # "floorplanner"
-DATASET = "floorplanner"
-SCENE_DATASET_VERSION_ID = "v0.2.0"
+DATASET = "ai2thor/procthor" # "floorplanner"
+# DATASET = "floorplanner"
+SCENE_DATASET_VERSION_ID = "v0.0.9"
 # EPISODE_DATASET_VERSION_ID = "v0.0.8_6_cat" # "v0.0.8_6_cat"
-EPISODE_DATASET_VERSION_ID = "v0.2.0_6_cat_indoor_only"
-GOAL_CATEGORIES_FILENAME = "6_goal_categories.yaml"
+EPISODE_DATASET_VERSION_ID = "v0.0.9_28_cat_indoor_only"
+GOAL_CATEGORIES_FILENAME = "28_goal_categories.yaml"
 OBJECT_ON_SAME_FLOOR = True  # [UPDATED]
 NUM_EPISODES = 30
 MIN_OBJECT_DISTANCE = 1.0
@@ -57,12 +57,13 @@ MAX_OBJECT_DISTANCE = 30.0
 INDOOR_CHECK = True
 
 NUM_GPUS = len(GPUtil.getAvailable(limit=256))
+NUM_GPUS = 1
 TASKS_PER_GPU = 20
 
 if "thor" in DATASET:
     DATASET, SUBDATASET = DATASET.split("/")
     # ISLAND_RADIUS_LIMIT = 1.0 # TODO: fetch from constants/cfg file
-    INDOOR_CHECK = False
+    INDOOR_CHECK = True
 
 scenes_root_path = f"data/scene_datasets/{DATASET}/{SCENE_DATASET_VERSION_ID}"
 goal_categories_path = os.path.join(
