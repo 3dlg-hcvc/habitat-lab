@@ -375,7 +375,9 @@ class HabitatSim(habitat_sim.Simulator, Simulator):
 
         return habitat_sim.Configuration(sim_config, [agent_config])
 
-    def compute_navmesh_island_classifications(self, active_indoor_threshold=0.85):
+    def compute_navmesh_island_classifications(
+        self, active_indoor_threshold=0.85
+    ):
         """
         Classify navmeshes as outdoor or indoor and find the largest indoor island.
         active_indoor_threshold is acceptacle indoor|outdoor ration for an active island (for example to allow some islands with a small porch or skylight)
@@ -402,7 +404,9 @@ class HabitatSim(habitat_sim.Simulator, Simulator):
                 "indoor"
             ] = self.island_indoor_metric(island_ix=island_ix)
             if (
-                self.navmesh_classification_results["island_info"][island_ix]["indoor"]
+                self.navmesh_classification_results["island_info"][island_ix][
+                    "indoor"
+                ]
                 > active_indoor_threshold
             ):
                 number_of_indoor += 1
@@ -410,13 +414,15 @@ class HabitatSim(habitat_sim.Simulator, Simulator):
             island_size = self.pathfinder.island_area(island_ix)
             if (
                 active_island_size < island_size
-                and self.navmesh_classification_results["island_info"][island_ix][
-                    "indoor"
-                ]
+                and self.navmesh_classification_results["island_info"][
+                    island_ix
+                ]["indoor"]
                 > active_indoor_threshold
             ):
                 active_island_size = island_size
-                self.navmesh_classification_results["active_island"] = island_ix
+                self.navmesh_classification_results[
+                    "active_island"
+                ] = island_ix
         # print(
         #     f"Found active island {self.navmesh_classification_results['active_island']} with area {active_island_size}."
         # )
@@ -424,9 +430,14 @@ class HabitatSim(habitat_sim.Simulator, Simulator):
         #     f"     Found {number_of_indoor} indoor islands out of {self.pathfinder.num_islands} total."
         # )
         for island_ix in range(self.pathfinder.num_islands):
-            island_info = self.navmesh_classification_results["island_info"][island_ix]
+            island_info = self.navmesh_classification_results["island_info"][
+                island_ix
+            ]
             info_str = f"    {island_ix}: indoor ratio = {island_info['indoor']}, area = {self.pathfinder.island_area(island_ix)}"
-            if self.navmesh_classification_results["active_island"] == island_ix:
+            if (
+                self.navmesh_classification_results["active_island"]
+                == island_ix
+            ):
                 info_str += "  -- active--"
             # print(info_str)
 
@@ -443,6 +454,8 @@ class HabitatSim(habitat_sim.Simulator, Simulator):
         # collect jittered samples
         samples = []
         for _sample_ix in range(max_tries):
+            if self.pathfinder.island_area(island_index=island_ix) <= 0:
+                break
             new_sample = self.pathfinder.get_random_navigable_point(
                 island_index=island_ix
             )
@@ -466,6 +479,9 @@ class HabitatSim(habitat_sim.Simulator, Simulator):
             if raycast_results.has_hits():
                 # assume any hit indicates "indoor"
                 indoor_count += 1
+
+        if len(samples) == 0:
+            return 0
 
         # return the ration of indoor to outdoor as the metric
         return indoor_count / len(samples)
