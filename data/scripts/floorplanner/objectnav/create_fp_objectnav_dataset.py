@@ -49,16 +49,16 @@ COMPRESSION = ".gz"
 DATASET = "hm3d"
 SCENE_DATASET_VERSION_ID = "v2"
 # EPISODE_DATASET_VERSION_ID = "v0.0.8_6_cat" # "v0.0.8_6_cat"
-EPISODE_DATASET_VERSION_ID = "v2_33_cat"
-GOAL_CATEGORIES_FILENAME = "33_goal_categories.yaml"
+EPISODE_DATASET_VERSION_ID = "v2_28_cat"
+# GOAL_CATEGORIES_FILENAME = "33_goal_categories.yaml"
 OBJECT_ON_SAME_FLOOR = True  # [UPDATED]
 NUM_EPISODES = 50000
 MIN_OBJECT_DISTANCE = 1.0
 MAX_OBJECT_DISTANCE = 30.0
 INDOOR_CHECK = False
 
-NUM_GPUS = 1#len(GPUtil.getAvailable(limit=256))
-TASKS_PER_GPU = 1
+NUM_GPUS = 2#len(GPUtil.getAvailable(limit=256))
+TASKS_PER_GPU = 20
 
 if "thor" in DATASET:
     DATASET, SUBDATASET = DATASET.split("/")
@@ -66,9 +66,6 @@ if "thor" in DATASET:
     INDOOR_CHECK = False
 
 scenes_root_path = f"data/scene_datasets/{DATASET}/{SCENE_DATASET_VERSION_ID}"
-goal_categories_path = os.path.join(
-    f"data/scene_datasets/{DATASET}/goals/", GOAL_CATEGORIES_FILENAME
-)
 semantic_id_mapping_path = os.path.join(
     scenes_root_path, "configs", "semantics", "object_semantic_id_mapping.json"
 )
@@ -101,9 +98,6 @@ failure_viz_folder = os.path.join(
     output_dataset_folder, "viz-30-val-eps-per-scene", "failure_cases"
 )
 
-with open(goal_categories_path, "r") as f:
-    goal_categories = yaml.safe_load(f)
-
 with open(semantic_id_mapping_path, "r") as f:
     semantic_id_mapping = json.load(f)
 
@@ -112,15 +106,14 @@ fp_hm3d_catmap = pd.read_csv(f'data/scene_datasets/{DATASET}/fp-hm3d-mapping.csv
 FP_HM3D_MAP = defaultdict(list)
 
 for i in range(fp_hm3d_catmap.shape[0]):
-    for j in range(2, fp_hm3d_catmap.shape[1]):
+    for j in range(1, fp_hm3d_catmap.shape[1]):
         if not pd.isnull(fp_hm3d_catmap.iloc[i, j]):
-            FP_HM3D_MAP[fp_hm3d_catmap.iloc[i, 1]].append(fp_hm3d_catmap.iloc[i, j])
+            FP_HM3D_MAP[fp_hm3d_catmap.iloc[i, 0]].append(fp_hm3d_catmap.iloc[i, j])
 
 HM3D_FP_MAP = {}
 for fpobj, hmobj in FP_HM3D_MAP.items():
     for ho in hmobj:
         HM3D_FP_MAP[ho] = fpobj
-
 
 def get_objnav_config(i, scene):
 
@@ -649,7 +642,7 @@ def generate_scene(args):
                 )
                 os.makedirs(goal_distances_viz_output_path, exist_ok=True)
                 goal_viz_output_filename = os.path.join(
-                    goal_distances_viz_output_path, f"{obj_cat}_{obj_name}.jpg"
+                    goal_distances_viz_output_path, f"{obj_cat}_{obj_name}.jpg".replace('/', '')
                 )
                 plt.figure(figsize=(8, 8))
 
