@@ -1387,6 +1387,7 @@ class PPOTrainer(BaseRLTrainer):
                             ),
                             dpi=300,
                         )
+                        plt.clf()
 
         print("-" * 40)
         for metric in df.keys():

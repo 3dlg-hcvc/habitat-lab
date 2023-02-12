@@ -57,7 +57,7 @@ MAX_OBJECT_DISTANCE = 30.0
 INDOOR_CHECK = True
 
 NUM_GPUS = len(GPUtil.getAvailable(limit=256))
-TASKS_PER_GPU = 20
+TASKS_PER_GPU = 30
 
 if "thor" in DATASET:
     DATASET, SUBDATASET = DATASET.split("/")
@@ -91,13 +91,13 @@ else:
     output_dataset_folder = f"data/datasets/objectnav/{DATASET}/{SUBDATASET}/{EPISODE_DATASET_VERSION_ID}"
 
 episode_dataset_viz_folder = os.path.join(
-    output_dataset_folder, "viz-30-val-eps-per-scene", "episodes"
+    output_dataset_folder, "viz", "episodes"
 )
 goal_distances_viz_folder = os.path.join(
-    output_dataset_folder, "viz-30-val-eps-per-scene", "goal_distances"
+    output_dataset_folder, "viz", "goal_distances"
 )
 failure_viz_folder = os.path.join(
-    output_dataset_folder, "viz-30-val-eps-per-scene", "failure_cases"
+    output_dataset_folder, "viz", "failure_cases"
 )
 
 with open(goal_categories_path, "r") as f:
